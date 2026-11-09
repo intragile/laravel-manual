@@ -1,0 +1,3 @@
+# Beállítás
+
+Összefoglaló.

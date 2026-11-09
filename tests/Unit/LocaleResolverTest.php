@@ -143,4 +143,15 @@ final class LocaleResolverTest extends TestCase
 
         $this->assertSame('en', $this->resolve());
     }
+
+    public function test_header_languages_with_zero_quality_are_ignored(): void
+    {
+        config(['manual.locales' => ['hu', 'en'], 'manual.source_locale' => 'hu', 'manual.fallback' => ['en']]);
+
+        // en;q=0 means "not en": de is passed on and served through the fallback chain.
+        $this->assertSame('de', $this->resolve(acceptLanguage: 'en;q=0, de;q=0.5'));
+
+        App::setLocale('fr');
+        $this->assertSame('hu', $this->resolve(acceptLanguage: 'en;q=0'), 'nothing acceptable: source locale');
+    }
 }

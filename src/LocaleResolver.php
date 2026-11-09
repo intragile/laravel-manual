@@ -6,6 +6,7 @@ namespace IntrAgile\Manual;
 
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\AcceptHeader;
 
 /**
  * Resolves the locale a request asks for: an allowed client locale when there is one,
@@ -22,7 +23,7 @@ final class LocaleResolver
 
     /**
      * Client candidates, in order: ?locale, then each Accept-Language tag in q order (full tag,
-     * then primary subtag).
+     * then primary subtag); tags with q=0 are dropped.
      *
      * 1. The first client candidate in `manual.locales` + `source_locale`, in its configured
      *    spelling (`pt-br` => `pt_BR`).
@@ -42,8 +43,11 @@ final class LocaleResolver
         if (is_string($query)) {
             $tags[] = $query;
         }
-        foreach ($request->getLanguages() as $language) {
-            $tags[] = $language;
+        foreach (AcceptHeader::fromString($request->headers->get('Accept-Language'))->all() as $item) {
+            // q=0 means "not acceptable"; Request::getLanguages() would keep it.
+            if ($item->getQuality() > 0) {
+                $tags[] = $item->getValue();
+            }
         }
 
         $firstValid = null;

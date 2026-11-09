@@ -25,6 +25,9 @@ final class ManualRepository
     /** Bump when the shape of cached values changes. */
     public const CACHE_VERSION = 1;
 
+    /** Generation read from the cache once per instance; null until first needed. */
+    private ?int $generation = null;
+
     public function __construct(
         private readonly ContentTree $tree,
         private readonly ManualRenderer $renderer,
@@ -107,20 +110,62 @@ final class ManualRepository
     }
 
     /**
+     * Invalidates every cached tree, chapter and search index on any cache store by
+     * moving to a new cache generation (old entries simply expire). Returns the new
+     * generation.
+     */
+    public function flushCache(): int
+    {
+        $key = $this->generationKey();
+        $generation = $this->cache->increment($key);
+
+        // Stores whose increment() does not create a missing key return false.
+        if (! is_int($generation) || $generation < 1) {
+            $generation = $this->storedGeneration() + 1;
+            $this->cache->forever($key, $generation);
+        }
+
+        return $this->generation = $generation;
+    }
+
+    /**
+     * The current cache generation, read once per instance.
+     *
+     * @internal
+     */
+    public function generation(): int
+    {
+        return $this->generation ??= $this->storedGeneration();
+    }
+
+    /**
      * @internal
      */
     public function cacheKey(string $kind, string $locale, string $slug = ''): string
     {
         return sprintf(
-            '%s:v%d:%s:%s:%s:%s%s',
+            '%s:v%d:g%d:%s:%s:%s:%s%s',
             $this->cachePrefix,
             self::CACHE_VERSION,
+            $this->generation(),
             $kind,
             $locale,
             $this->configHash,
             $this->fingerprint(),
             $slug === '' ? '' : ':'.$slug,
         );
+    }
+
+    private function generationKey(): string
+    {
+        return $this->cachePrefix.':generation';
+    }
+
+    private function storedGeneration(): int
+    {
+        $value = $this->cache->get($this->generationKey());
+
+        return is_int($value) || (is_string($value) && ctype_digit($value)) ? (int) $value : 0;
     }
 
     /**

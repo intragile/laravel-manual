@@ -8,12 +8,15 @@ use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use IntrAgile\Manual\Console\CheckCommand;
+use IntrAgile\Manual\Console\ClearCommand;
 use IntrAgile\Manual\Content\ContentTree;
 use IntrAgile\Manual\Content\ManualRepository;
 use IntrAgile\Manual\Facades\Manual;
 use IntrAgile\Manual\Rendering\ManualRenderer;
 use IntrAgile\Manual\Search\ManualSearch;
 use IntrAgile\Manual\Search\Stemmer;
+use IntrAgile\Manual\Validation\ManualValidator;
 
 final class ManualServiceProvider extends ServiceProvider
 {
@@ -30,10 +33,12 @@ final class ManualServiceProvider extends ServiceProvider
 
         $this->app->singleton(ManualRenderer::class, fn (Application $app): ManualRenderer => new ManualRenderer(
             self::stringList(config('manual.callouts')),
-            $this->links($app->make(ContentTree::class)),
+            $this->links($app->make(ContentTree::class)->path()),
         ));
 
-        $this->app->singleton(ManualRepository::class, function (Application $app): ManualRepository {
+        // Scoped, not singleton: the cache generation is read once per instance, and a
+        // long-running worker (Octane, queue) must see a `manual:clear` on its next request.
+        $this->app->scoped(ManualRepository::class, function (Application $app): ManualRepository {
             $store = config('manual.cache.store');
 
             return new ManualRepository(
@@ -45,7 +50,7 @@ final class ManualServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->singleton(ManualSearch::class, function (Application $app): ManualSearch {
+        $this->app->scoped(ManualSearch::class, function (Application $app): ManualSearch {
             $store = config('manual.cache.store');
             $minLength = config('manual.search.min_term_length', 3);
             $limit = config('manual.search.limit', 10);
@@ -61,7 +66,24 @@ final class ManualServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->singleton(ManualManager::class);
+        $this->app->scoped(ManualManager::class);
+
+        // Built from the current config on every resolve, like the command run it serves.
+        $this->app->bind(ManualValidator::class, function (): ManualValidator {
+            $path = self::stringConfig('manual.path');
+            $links = $this->links($path);
+            $callouts = self::stringList(config('manual.callouts'));
+
+            return new ManualValidator(
+                $path,
+                self::stringList(config('manual.locales')),
+                self::stringConfig('manual.source_locale', 'en'),
+                $callouts,
+                $links,
+                config('manual.known_routes'),
+                new ManualRenderer($callouts, $links),
+            );
+        });
     }
 
     public function boot(): void
@@ -78,6 +100,8 @@ final class ManualServiceProvider extends ServiceProvider
         }
 
         if ($this->app->runningInConsole()) {
+            $this->commands([CheckCommand::class, ClearCommand::class]);
+
             $this->publishes([
                 __DIR__.'/../config/manual.php' => config_path('manual.php'),
             ], 'manual-config');
@@ -102,7 +126,7 @@ final class ManualServiceProvider extends ServiceProvider
             self::stringConfig('manual.source_locale', 'en'),
             self::stringList(config('manual.fallback')),
             self::stringList(config('manual.callouts')),
-            $this->links($tree),
+            $this->links($tree->path()),
             $stat,
         ]));
     }
@@ -134,14 +158,14 @@ final class ManualServiceProvider extends ServiceProvider
     /**
      * @return array<string, array<string, string>>
      */
-    private function links(ContentTree $tree): array
+    private function links(string $path): array
     {
         $configured = config('manual.links');
 
         if (is_array($configured)) {
             $links = $configured;
         } else {
-            $file = is_string($configured) && $configured !== '' ? $configured : $tree->path().'/_links.php';
+            $file = is_string($configured) && $configured !== '' ? $configured : $path.'/_links.php';
             $links = is_file($file) ? (static fn (): mixed => require $file)() : [];
         }
 

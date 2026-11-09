@@ -60,7 +60,9 @@ return [
     // null = `{path}/_links.php`, when it exists.
     'links' => null,
 
-    // null | list<string> | callable(): list<string>
+    // Route names `[[route:name|...]]` may use, checked by `manual:check`; null skips the check.
+    // null | list<string> | callable(): iterable<string>, e.g. 'App\Support\Routes::names'
+    // (a string callable keeps `config:cache` working; a Closure does not).
     'known_routes' => null,
 
     /*

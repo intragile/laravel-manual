@@ -25,7 +25,11 @@ use League\CommonMark\MarkdownConverter;
  */
 final class ManualRenderer
 {
-    private const SAFE_VALUE = '[A-Za-z0-9._\/-]+';
+    /** Charset of token values (slugs, route names, link keys, icon names); the validator reuses it. */
+    public const SAFE_VALUE = '[A-Za-z0-9._\/-]+';
+
+    /** URLs `[[link:]]` may point to; anything else renders as plain label text. */
+    public const SAFE_URL = '/^(?:https?:\/\/[^\/\s"<>]+|mailto:[^\s"<>]+)[^\s"<>\x00-\x1f]*$/i';
 
     /**
      * @param  list<string>  $callouts  allowed `:::type` container names
@@ -201,7 +205,7 @@ final class ManualRenderer
 
         $url = $byLocale[$locale] ?? $byLocale['en'] ?? reset($byLocale);
 
-        if (preg_match('/^(?:https?:\/\/[^\/\s"<>]+|mailto:[^\s"<>]+)[^\s"<>\x00-\x1f]*$/i', $url) !== 1) {
+        if (preg_match(self::SAFE_URL, $url) !== 1) {
             return $label;
         }
 

@@ -63,7 +63,15 @@ final class ManualRenderer
      */
     public function title(string $markdown): string
     {
-        return preg_match('/^\#\s+(.+)$/m', $markdown, $m) === 1 ? trim($this->stripInline($m[1])) : '';
+        if (preg_match('/^\#\s+(.+)$/m', $markdown, $m) !== 1) {
+            return '';
+        }
+
+        $text = $this->stripInline($m[1]);
+        $text = preg_replace('/\[([^\]]*)\]\([^)]*\)/', '$1', $text) ?? $text;
+        $text = str_replace(['**', '__', '*', '`'], '', strip_tags($text));
+
+        return trim(preg_replace('/\s+/', ' ', $text) ?? '');
     }
 
     /**
@@ -111,7 +119,7 @@ final class ManualRenderer
      */
     public function plainText(string $markdown): string
     {
-        $text = $this->stripMarkdown($markdown);
+        $text = strip_tags($this->stripMarkdown($markdown));
         $text = preg_replace('/^:::.*$/m', '', $text) ?? $text;
         $text = preg_replace('/[#>*_`|-]+/', ' ', $text) ?? $text;
 
@@ -245,28 +253,50 @@ final class ManualRenderer
             return $html;
         }
 
+        $typePattern = '/^:::(?:('.implode('|', array_map(static fn (string $t): string => preg_quote($t, '/'), $types)).'))?$/';
+        $parts = preg_split('/(<[^>]*>)/', $html, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [];
         $open = 0;
-        $pattern = '/<p>:::(?:('.implode('|', array_map(static fn (string $t): string => preg_quote($t, '/'), $types)).'))?<\/p>/';
+        $depth = 0;
+        $out = [];
 
-        $html = preg_replace_callback(
-            $pattern,
-            static function (array $m) use (&$open): string {
-                if (isset($m[1]) && $m[1] !== '') {
+        for ($i = 0, $n = count($parts); $i < $n; $i++) {
+            $part = $parts[$i];
+
+            if ($part[0] === '<') {
+                if (preg_match('/^<(blockquote|li|td|th)[\s>]/i', $part) === 1) {
+                    $depth++;
+                } elseif (preg_match('/^<\/(blockquote|li|td|th)>/i', $part) === 1 && $depth > 0) {
+                    $depth--;
+                }
+            }
+
+            if (
+                $depth === 0
+                && $part === '<p>'
+                && ($parts[$i + 2] ?? '') === '</p>'
+                && preg_match($typePattern, $parts[$i + 1], $m) === 1
+            ) {
+                if (($m[1] ?? '') !== '') {
                     $open++;
+                    $out[] = '<div class="manual-callout" data-type="'.self::attr($m[1]).'">';
+                    $i += 2;
 
-                    return '<div class="manual-callout" data-type="'.self::attr($m[1]).'">';
+                    continue;
                 }
 
-                if ($open === 0) {
-                    return $m[0];
+                if ($open > 0) {
+                    $open--;
+                    $out[] = '</div>';
+                    $i += 2;
+
+                    continue;
                 }
+            }
 
-                $open--;
+            $out[] = $part;
+        }
 
-                return '</div>';
-            },
-            $html,
-        ) ?? $html;
+        $html = implode('', $out);
 
         return $html.str_repeat('</div>', $open);
     }

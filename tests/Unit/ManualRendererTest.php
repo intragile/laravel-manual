@@ -181,4 +181,50 @@ final class ManualRendererTest extends TestCase
         $this->assertStringNotContainsString('[[', $r->plainText($md));
         $this->assertStringContainsString('Body text', $r->plainText($md));
     }
+
+    private function assertBalanced(string $html): void
+    {
+        preg_match_all('/<(\/?)(div|blockquote|ul|ol|li)\b[^>]*>/', $html, $tags, PREG_SET_ORDER);
+        $stack = [];
+        foreach ($tags as $t) {
+            if ($t[1] === '') {
+                $stack[] = $t[2];
+            } else {
+                $this->assertSame(array_pop($stack), $t[2], 'bad nesting in '.$html);
+            }
+        }
+        $this->assertSame([], $stack, $html);
+        $this->assertSame(substr_count($html, '<div'), substr_count($html, '</div>'));
+    }
+
+    public function test_callouts_stay_balanced_inside_blockquotes_and_lists(): void
+    {
+        $r = $this->renderer();
+
+        $a = $r->toHtml("> :::tip\n>\n> inside\n\noutside\n\n:::", 'en');
+        $this->assertBalanced($a);
+        $this->assertStringNotContainsString('manual-callout', $a);
+
+        $b = $r->toHtml(":::tip\n\n> x\n>\n> :::", 'en');
+        $this->assertBalanced($b);
+        $this->assertStringContainsString('manual-callout', $b);
+
+        $c = $r->toHtml("- a\n\n- :::tip\n\n- b", 'en');
+        $this->assertBalanced($c);
+        $this->assertStringNotContainsString('manual-callout', $c);
+    }
+
+    public function test_title_is_plain_text(): void
+    {
+        $this->assertSame('alert(1) B', $this->renderer()->title("# <script>alert(1)</script> **B**\n"));
+        $this->assertSame('api_key and link', $this->renderer()->title('# api_key and [[manual:a/b|link]]'));
+    }
+
+    public function test_plain_text_has_no_tag_fragments(): void
+    {
+        $text = $this->renderer()->plainText('<script>alert(1)</script> hi');
+
+        $this->assertStringNotContainsString('<', $text);
+        $this->assertStringContainsString('hi', $text);
+    }
 }

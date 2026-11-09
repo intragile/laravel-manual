@@ -4,13 +4,41 @@ declare(strict_types=1);
 
 namespace IntrAgile\Manual;
 
+use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\ServiceProvider;
+use IntrAgile\Manual\Content\ContentTree;
+use IntrAgile\Manual\Content\ManualRepository;
+use IntrAgile\Manual\Rendering\ManualRenderer;
 
 final class ManualServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/manual.php', 'manual');
+
+        $this->app->singleton(ContentTree::class, fn (): ContentTree => new ContentTree(
+            self::stringConfig('manual.path'),
+            self::stringList(config('manual.locales')),
+            self::stringConfig('manual.source_locale', 'en'),
+            self::stringList(config('manual.fallback')),
+        ));
+
+        $this->app->singleton(ManualRenderer::class, fn (Application $app): ManualRenderer => new ManualRenderer(
+            self::stringList(config('manual.callouts')),
+            $this->links($app->make(ContentTree::class)),
+        ));
+
+        $this->app->singleton(ManualRepository::class, function (Application $app): ManualRepository {
+            $store = config('manual.cache.store');
+
+            return new ManualRepository(
+                $app->make(ContentTree::class),
+                $app->make(ManualRenderer::class),
+                Cache::store(is_string($store) ? $store : null),
+                self::stringConfig('manual.cache.prefix', 'manual'),
+            );
+        });
     }
 
     public function boot(): void
@@ -29,5 +57,55 @@ final class ManualServiceProvider extends ServiceProvider
                 __DIR__.'/../config/manual.php' => config_path('manual.php'),
             ], 'manual-config');
         }
+    }
+
+    /**
+     * @return array<string, array<string, string>>
+     */
+    private function links(ContentTree $tree): array
+    {
+        $configured = config('manual.links');
+
+        if (is_array($configured)) {
+            $links = $configured;
+        } else {
+            $file = is_string($configured) && $configured !== '' ? $configured : $tree->path().'/_links.php';
+            $links = is_file($file) ? (static fn (): mixed => require $file)() : [];
+        }
+
+        $result = [];
+
+        if (! is_array($links)) {
+            return $result;
+        }
+
+        foreach ($links as $key => $urls) {
+            if (! is_array($urls)) {
+                continue;
+            }
+
+            foreach ($urls as $locale => $url) {
+                if (is_string($url)) {
+                    $result[(string) $key][(string) $locale] = $url;
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    private static function stringConfig(string $key, string $default = ''): string
+    {
+        $value = config($key);
+
+        return is_string($value) ? $value : $default;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function stringList(mixed $value): array
+    {
+        return is_array($value) ? array_values(array_filter($value, 'is_string')) : [];
     }
 }

@@ -1,0 +1,306 @@
+<?php
+
+declare(strict_types=1);
+
+namespace IntrAgile\Manual\Tests\Unit;
+
+use Illuminate\Cache\Events\CacheHit;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
+use IntrAgile\Manual\Content\ContentTree;
+use IntrAgile\Manual\Content\ManualRepository;
+use IntrAgile\Manual\Facades\Manual;
+use IntrAgile\Manual\Rendering\ManualRenderer;
+use IntrAgile\Manual\Tests\TestCase;
+
+final class ManualRepositoryTest extends TestCase
+{
+    private string $tmp = '';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->useContent(__DIR__.'/../Fixtures/manual');
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->tmp !== '' && is_dir($this->tmp)) {
+            $this->removeDir($this->tmp);
+        }
+
+        parent::tearDown();
+    }
+
+    private function useContent(string $path): void
+    {
+        config([
+            'manual.path' => $path,
+            'manual.locales' => ['hu', 'en'],
+            'manual.source_locale' => 'hu',
+            'manual.fallback' => ['en'],
+            'manual.cache.store' => 'array',
+        ]);
+
+        app()->forgetInstance(ContentTree::class);
+        app()->forgetInstance(ManualRepository::class);
+        app()->forgetInstance(ManualRenderer::class);
+        Cache::forgetDriver('array');
+    }
+
+    private function repo(): ManualRepository
+    {
+        return app()->make(ManualRepository::class);
+    }
+
+    private function copyFixture(): string
+    {
+        $this->tmp = sys_get_temp_dir().'/manual-test-'.bin2hex(random_bytes(4));
+        $this->copyDir(__DIR__.'/../Fixtures/manual', $this->tmp);
+
+        return $this->tmp;
+    }
+
+    private function copyDir(string $from, string $to): void
+    {
+        mkdir($to, 0777, true);
+
+        foreach (scandir($from) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            is_dir($from.'/'.$entry)
+                ? $this->copyDir($from.'/'.$entry, $to.'/'.$entry)
+                : copy($from.'/'.$entry, $to.'/'.$entry);
+        }
+    }
+
+    private function removeDir(string $dir): void
+    {
+        foreach (scandir($dir) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            is_dir($dir.'/'.$entry) ? $this->removeDir($dir.'/'.$entry) : unlink($dir.'/'.$entry);
+        }
+
+        rmdir($dir);
+    }
+
+    public function test_tree_orders_and_numbers(): void
+    {
+        $tree = $this->repo()->tree('hu');
+
+        $this->assertSame(['general', 'advanced'], array_column($tree, 'id'));
+        $this->assertSame('home', $tree[0]['icon']);
+        $this->assertSame(['1.1', '1.2'], array_column($tree[0]['chapters'], 'number'));
+        $this->assertSame('2.1', $tree[1]['chapters'][0]['number']);
+        $this->assertSame('general/intro', $tree[0]['chapters'][0]['slug']);
+        $this->assertSame('Bevezetés', $tree[0]['chapters'][0]['title']);
+        $this->assertSame('Ez a bevezető fejezet első bekezdése.', $tree[0]['chapters'][0]['summary']);
+    }
+
+    public function test_section_titles_are_localized(): void
+    {
+        $this->assertSame('Általános', $this->repo()->tree('hu')[0]['title']);
+        $this->assertSame('General', $this->repo()->tree('en')[0]['title']);
+        // en lacks "advanced": falls back to hu.
+        $this->assertSame('Haladó', $this->repo()->tree('en')[1]['title']);
+    }
+
+    public function test_section_title_falls_back_to_id_as_last_resort(): void
+    {
+        $dir = $this->copyFixture();
+        unlink($dir.'/hu/_sections.php');
+        unlink($dir.'/en/_sections.php');
+        $this->useContent($dir);
+
+        $this->assertSame('general', $this->repo()->tree('hu')[0]['title']);
+    }
+
+    public function test_chapter_has_neighbours_position_total_and_reading_time(): void
+    {
+        $chapter = $this->repo()->chapter('general/setup', 'hu');
+
+        $this->assertNotNull($chapter);
+        $this->assertSame('general', $chapter['section']);
+        $this->assertSame('1.2', $chapter['number']);
+        $this->assertSame(2, $chapter['position']);
+        $this->assertSame(3, $chapter['total']);
+        $this->assertSame(1, $chapter['readingMinutes']);
+        $this->assertSame(['slug' => 'general/intro', 'title' => 'Bevezetés'], $chapter['prev']);
+        $this->assertSame(['slug' => 'advanced/tuning', 'title' => 'Finomhangolás'], $chapter['next']);
+        $this->assertSame('hu', $chapter['locale']);
+        $this->assertFalse($chapter['fallback']);
+        $this->assertSame([['level' => 2, 'text' => 'Részletek', 'anchor' => 'reszletek']], $chapter['headings']);
+        $this->assertStringContainsString('<h1', $chapter['html']);
+
+        $first = $this->repo()->chapter('general/intro', 'hu');
+        $this->assertNotNull($first);
+        $this->assertNull($first['prev']);
+    }
+
+    public function test_tokens_are_rendered_in_chapters(): void
+    {
+        $chapter = $this->repo()->chapter('general/intro', 'en');
+
+        $this->assertNotNull($chapter);
+        $this->assertStringContainsString('data-slug="general/setup"', $chapter['html']);
+        $this->assertStringContainsString('the setup', $chapter['html']);
+        $this->assertStringNotContainsString('[[manual:', $chapter['html']);
+    }
+
+    public function test_falls_back_to_source_locale_when_translation_missing(): void
+    {
+        $chapter = $this->repo()->chapter('advanced/tuning', 'en');
+
+        $this->assertNotNull($chapter);
+        $this->assertSame('hu', $chapter['locale']);
+        $this->assertTrue($chapter['fallback']);
+        $this->assertSame('Finomhangolás', $chapter['title']);
+
+        $tree = $this->repo()->tree('en');
+        $this->assertSame('advanced/tuning', $tree[1]['chapters'][0]['slug']);
+    }
+
+    public function test_markdown_returns_source_and_locale(): void
+    {
+        $markdown = $this->repo()->markdown('advanced/tuning', 'en');
+
+        $this->assertNotNull($markdown);
+        $this->assertSame('hu', $markdown['locale']);
+        $this->assertStringStartsWith('# Finomhangolás', $markdown['markdown']);
+        $this->assertNull($this->repo()->markdown('../_meta', 'hu'));
+    }
+
+    public function test_unknown_or_traversal_slug_is_null(): void
+    {
+        foreach (['../_meta', 'general/../../x', 'general/../../.env', 'nope/nope', 'general', '', 'general/intro/../intro', "general/intro\0"] as $slug) {
+            $this->assertNull($this->repo()->chapter($slug, 'hu'), $slug);
+            $this->assertNull($this->repo()->markdown($slug, 'hu'), $slug);
+        }
+
+        $tree = app()->make(ContentTree::class);
+        $this->assertFalse($tree->isKnown('../_meta'));
+        $this->assertTrue($tree->isKnown('general/intro'));
+    }
+
+    public function test_disallowed_locale_is_treated_as_source_locale(): void
+    {
+        foreach (['../x', 'xx', '../../etc'] as $locale) {
+            $chapter = $this->repo()->chapter('general/intro', $locale);
+
+            $this->assertNotNull($chapter, $locale);
+            $this->assertSame('hu', $chapter['locale']);
+            $this->assertTrue($chapter['fallback']);
+            $this->assertSame('Általános', $this->repo()->tree($locale)[0]['title']);
+        }
+
+        $markdown = $this->repo()->markdown('general/intro', '../x');
+        $this->assertNotNull($markdown);
+        $this->assertSame('hu', $markdown['locale']);
+    }
+
+    public function test_cache_is_invalidated_when_content_changes(): void
+    {
+        $dir = $this->copyFixture();
+        $this->useContent($dir);
+
+        $this->assertSame('Bevezetés', $this->repo()->tree('hu')[0]['chapters'][0]['title']);
+
+        file_put_contents($dir.'/hu/general/intro.md', "# Új cím\n\nÚj összefoglaló, hosszabb szöveg.\n");
+
+        $this->assertSame('Új cím', $this->repo()->tree('hu')[0]['chapters'][0]['title']);
+        $chapter = $this->repo()->chapter('general/intro', 'hu');
+        $this->assertNotNull($chapter);
+        $this->assertSame('Új cím', $chapter['title']);
+    }
+
+    public function test_missing_content_directory_gives_empty_tree(): void
+    {
+        $this->useContent(sys_get_temp_dir().'/manual-does-not-exist-'.bin2hex(random_bytes(4)));
+
+        $this->assertSame([], $this->repo()->tree('hu'));
+        $this->assertNull($this->repo()->chapter('general/intro', 'hu'));
+        $this->assertSame(sha1(''), $this->repo()->fingerprint());
+    }
+
+    public function test_fingerprint_is_deterministic_and_content_sensitive(): void
+    {
+        $this->assertSame($this->repo()->fingerprint(), $this->repo()->fingerprint());
+
+        $dir = $this->copyFixture();
+        $this->useContent($dir);
+        $before = $this->repo()->fingerprint();
+        file_put_contents($dir.'/hu/general/setup.md', "# Beállítás\n\nMás.\n");
+        $this->assertNotSame($before, $this->repo()->fingerprint());
+    }
+
+    public function test_cache_survives_serializable_classes_false_on_file_store(): void
+    {
+        $dir = sys_get_temp_dir().'/manual-cache-'.bin2hex(random_bytes(4));
+        mkdir($dir);
+
+        try {
+            config([
+                'cache.serializable_classes' => false,
+                'cache.stores.file' => ['driver' => 'file', 'path' => $dir],
+                'manual.cache.store' => 'file',
+            ]);
+            Cache::forgetDriver('file');
+            app()->forgetInstance(ManualRepository::class);
+
+            $first = $this->repo()->tree('hu');
+            $firstChapter = $this->repo()->chapter('general/intro', 'hu');
+
+            $hits = 0;
+            Event::listen(CacheHit::class, function () use (&$hits): void {
+                $hits++;
+            });
+
+            $this->assertSame($first, $this->repo()->tree('hu'));
+            $this->assertSame(1, $hits, 'tree must come from cache');
+            $this->assertSame($firstChapter, $this->repo()->chapter('general/intro', 'hu'));
+            $this->assertSame(2, $hits, 'chapter must come from cache');
+            $this->assertNotNull($firstChapter);
+            $this->assertNotSame([], $first);
+        } finally {
+            $this->removeDir($dir);
+        }
+    }
+
+    public function test_wrong_shaped_cache_entry_is_rebuilt(): void
+    {
+        $expected = $this->repo()->chapter('general/intro', 'hu');
+        $expectedTree = $this->repo()->tree('hu');
+
+        $store = Cache::store('array');
+        $store->put($this->repo()->cacheKey('chapter', 'hu', 'general/intro'), ['slug' => 5], 60);
+        $store->put($this->repo()->cacheKey('tree', 'hu'), 'garbage', 60);
+
+        $this->assertSame($expected, $this->repo()->chapter('general/intro', 'hu'));
+        $this->assertSame($expectedTree, $this->repo()->tree('hu'));
+    }
+
+    public function test_facade_resolves_the_repository_singleton(): void
+    {
+        $this->assertSame($this->repo(), Manual::getFacadeRoot());
+        $this->assertSame($this->repo()->tree('hu'), Manual::tree('hu'));
+        Manual::routes();
+    }
+
+    public function test_links_file_defaults_to_path_links_php(): void
+    {
+        $dir = $this->copyFixture();
+        file_put_contents($dir.'/_links.php', "<?php return ['docs' => ['en' => 'https://example.com/docs']];");
+        file_put_contents($dir.'/en/general/intro.md', "# Intro\n\nSee [[link:docs|the docs]].\n");
+        $this->useContent($dir);
+
+        $chapter = $this->repo()->chapter('general/intro', 'en');
+        $this->assertNotNull($chapter);
+        $this->assertStringContainsString('https://example.com/docs', $chapter['html']);
+    }
+}

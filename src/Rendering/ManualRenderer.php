@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace IntrAgile\Manual\Rendering;
 
+use IntrAgile\Manual\Support\Ascii;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\Table\TableExtension;
@@ -131,40 +132,10 @@ final class ManualRenderer
      */
     public static function anchor(string $text): string
     {
-        $slug = strtolower(self::foldAccents($text));
+        $slug = strtolower(Ascii::fold($text));
         $slug = preg_replace('/[^a-z0-9]+/', '-', $slug) ?? '';
 
         return trim($slug, '-');
-    }
-
-    /** @var array<string, string>|null */
-    private static ?array $accentMap = null;
-
-    private static function foldAccents(string $text): string
-    {
-        if (self::$accentMap === null) {
-            $map = [];
-            $groups = [
-                'a' => 'áàâäãåāăąÁÀÂÄÃÅĀĂĄ', 'c' => 'çćĉčÇĆĈČ', 'd' => 'ďđĎĐ', 'e' => 'éèêëēĕėęěÉÈÊËĒĔĖĘĚ',
-                'g' => 'ĝğģĜĞĢ', 'h' => 'ĥħĤĦ', 'i' => 'íìîïĩīĭįıÍÌÎÏĨĪĬĮİ', 'j' => 'ĵĴ', 'k' => 'ķĶ',
-                'l' => 'ĺļľłĹĻĽŁ', 'n' => 'ñńņňÑŃŅŇ', 'o' => 'óòôöõøōŏőÓÒÔÖÕØŌŎŐ', 'r' => 'ŕŗřŔŖŘ',
-                's' => 'śŝşšșŚŜŞŠȘ', 't' => 'ţťŧțŢŤŦȚ', 'u' => 'úùûüũūŭůűųÚÙÛÜŨŪŬŮŰŲ', 'w' => 'ŵŴ',
-                'y' => 'ýÿŷÝŸŶ', 'z' => 'źżžŹŻŽ',
-            ];
-            foreach ($groups as $base => $chars) {
-                foreach (mb_str_split($chars) as $char) {
-                    $map[$char] = $base;
-                }
-            }
-            $map['ß'] = 'ss';
-            $map['æ'] = 'ae';
-            $map['Æ'] = 'ae';
-            $map['œ'] = 'oe';
-            $map['Œ'] = 'oe';
-            self::$accentMap = $map;
-        }
-
-        return strtr($text, self::$accentMap);
     }
 
     /**

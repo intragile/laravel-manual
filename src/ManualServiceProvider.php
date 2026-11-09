@@ -10,6 +10,8 @@ use Illuminate\Support\ServiceProvider;
 use IntrAgile\Manual\Content\ContentTree;
 use IntrAgile\Manual\Content\ManualRepository;
 use IntrAgile\Manual\Rendering\ManualRenderer;
+use IntrAgile\Manual\Search\ManualSearch;
+use IntrAgile\Manual\Search\Stemmer;
 
 final class ManualServiceProvider extends ServiceProvider
 {
@@ -38,6 +40,22 @@ final class ManualServiceProvider extends ServiceProvider
                 Cache::store(is_string($store) ? $store : null),
                 self::stringConfig('manual.cache.prefix', 'manual'),
                 $this->configHash($app->make(ContentTree::class)),
+            );
+        });
+
+        $this->app->singleton(ManualSearch::class, function (Application $app): ManualSearch {
+            $store = config('manual.cache.store');
+            $minLength = config('manual.search.min_term_length', 3);
+            $limit = config('manual.search.limit', 10);
+
+            return new ManualSearch(
+                $app->make(ContentTree::class),
+                $app->make(ManualRepository::class),
+                $app->make(ManualRenderer::class),
+                Cache::store(is_string($store) ? $store : null),
+                $this->stemmers(),
+                is_numeric($minLength) ? max(1, (int) $minLength) : 3,
+                is_numeric($limit) ? (int) $limit : 10,
             );
         });
     }
@@ -81,6 +99,30 @@ final class ManualServiceProvider extends ServiceProvider
             $this->links($tree),
             $stat,
         ]));
+    }
+
+    /**
+     * Locale => stemmer from `manual.stemmers`; an unknown or invalid class is skipped,
+     * which means no stemming for that locale.
+     *
+     * @return array<string, Stemmer>
+     */
+    private function stemmers(): array
+    {
+        $configured = config('manual.stemmers');
+        $stemmers = [];
+
+        if (! is_array($configured)) {
+            return $stemmers;
+        }
+
+        foreach ($configured as $locale => $class) {
+            if (is_string($class) && is_a($class, Stemmer::class, true)) {
+                $stemmers[(string) $locale] = new $class;
+            }
+        }
+
+        return $stemmers;
     }
 
     /**

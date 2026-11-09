@@ -6,8 +6,3 @@ parameters:
         - src
         - config
         - tests
-    ignoreErrors:
-        # Temporary: the stemmer classes arrive in Task 4; remove then.
-        -
-            identifier: class.notFound
-            path: config/manual.php

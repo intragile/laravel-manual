@@ -6,9 +6,11 @@ namespace IntrAgile\Manual;
 
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use IntrAgile\Manual\Content\ContentTree;
 use IntrAgile\Manual\Content\ManualRepository;
+use IntrAgile\Manual\Facades\Manual;
 use IntrAgile\Manual\Rendering\ManualRenderer;
 use IntrAgile\Manual\Search\ManualSearch;
 use IntrAgile\Manual\Search\Stemmer;
@@ -67,8 +69,10 @@ final class ManualServiceProvider extends ServiceProvider
         $enabled = filter_var(config('manual.routes.enabled', true), FILTER_VALIDATE_BOOL);
 
         if ($enabled && ! $this->app->routesAreCached()) {
-            // TODO(Task 5): register the manual routes here, inside
-            // Route::middleware(config('manual.routes.middleware', ['api']))->group(...).
+            $middleware = config('manual.routes.middleware', ['api']);
+
+            Route::middleware(is_array($middleware) ? $middleware : [])
+                ->group(static fn () => Manual::routes());
         }
 
         if ($this->app->runningInConsole()) {

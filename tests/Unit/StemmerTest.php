@@ -20,6 +20,7 @@ final class StemmerTest extends TestCase
     {
         return [
             'eket' => ['tokeneket', 'token'],
+            // Intentional over-stemming (IntrApp parity): `nek` is tried before `ek`.
             'nek is listed before ek' => ['tokenek', 'toke'],
             'ban' => ['rendszerban', 'rendszer'],
             'hoz' => ['webhookhoz', 'webhook'],
@@ -44,7 +45,13 @@ final class StemmerTest extends TestCase
     public static function english(): array
     {
         return [
-            'ies' => ['queries', 'query'],
+            'ies' => ['queries', 'quer'],
+            'y' => ['query', 'quer'],
+            'entries' => ['entries', 'entr'],
+            'entry' => ['entry', 'entr'],
+            'policies' => ['policies', 'polic'],
+            'policy' => ['policy', 'polic'],
+            'short y' => ['copy', 'copy'],
             's' => ['tokens', 'token'],
             'es' => ['matches', 'match'],
             'ing' => ['listing', 'list'],
@@ -69,5 +76,8 @@ final class StemmerTest extends TestCase
     {
         $this->assertSame('arvizturo tukorfurogep', Ascii::fold('árvíztűrő tükörfúrógép'));
         $this->assertSame('strasse', Ascii::fold('straße'));
+        $this->assertSame('ertesitesi', strtolower(Ascii::fold("E\u{301}rtesi\u{301}te\u{301}si")));
+        $this->assertSame('', Ascii::foldChar("\u{301}"));
+        $this->assertSame('o', Ascii::foldChar('ő'));
     }
 }

@@ -21,6 +21,36 @@ final class Ascii
      */
     public static function fold(string $text): string
     {
+        $folded = strtr($text, self::map());
+
+        // Decomposed (NFD) accents: drop combining marks.
+        return preg_replace('/\p{Mn}+/u', '', $folded) ?? $folded;
+    }
+
+    /**
+     * Single-character variant of fold() (a map lookup, no strtr per call).
+     * A combining mark folds to the empty string.
+     */
+    public static function foldChar(string $char): string
+    {
+        if (strlen($char) === 1) {
+            return $char;
+        }
+
+        $map = self::map();
+
+        if (isset($map[$char])) {
+            return $map[$char];
+        }
+
+        return preg_match('/^\p{Mn}+$/u', $char) === 1 ? '' : $char;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function map(): array
+    {
         if (self::$accentMap === null) {
             $map = [];
             $groups = [
@@ -43,6 +73,6 @@ final class Ascii
             self::$accentMap = $map;
         }
 
-        return strtr($text, self::$accentMap);
+        return self::$accentMap;
     }
 }

@@ -227,6 +227,87 @@ final class ManualSearchTest extends TestCase
         }
     }
 
+    public function test_english_singular_and_plural_match_both_ways(): void
+    {
+        $dir = sys_get_temp_dir().'/manual-search-en-'.bin2hex(random_bytes(4));
+        mkdir($dir.'/en/g', 0777, true);
+        file_put_contents($dir.'/_meta.php', "<?php return ['g' => ['icon' => 'x', 'order' => 1, 'chapters' => ['a', 'b']]];");
+        file_put_contents($dir.'/en/g/a.md', "# Saved queries\n\nSaved queries and entries live here.\n");
+        file_put_contents($dir.'/en/g/b.md', "# Lookup\n\nRun a query on one entry.\n");
+
+        try {
+            config(['manual.locales' => ['en'], 'manual.source_locale' => 'en']);
+            $this->useContentKeepingConfig($dir);
+
+            foreach (['queries', 'query'] as $q) {
+                $this->assertSame(['g/a', 'g/b'], $this->slugs($this->search()->search($q, 'en')), $q);
+            }
+            foreach (['entries', 'entry'] as $q) {
+                $this->assertSame(['g/a', 'g/b'], $this->slugs($this->search()->search($q, 'en')), $q);
+            }
+        } finally {
+            exec('rm -rf '.escapeshellarg($dir));
+        }
+    }
+
+    private function useContentKeepingConfig(string $path): void
+    {
+        config(['manual.path' => $path, 'manual.cache.store' => 'array']);
+
+        foreach ([ContentTree::class, ManualRepository::class, ManualRenderer::class, ManualSearch::class] as $abstract) {
+            app()->forgetInstance($abstract);
+        }
+        Cache::forgetDriver('array');
+    }
+
+    public function test_result_count_equals_limit_when_more_documents_match(): void
+    {
+        $dir = sys_get_temp_dir().'/manual-search-many-'.bin2hex(random_bytes(4));
+        mkdir($dir.'/en/g', 0777, true);
+        $chapters = [];
+
+        for ($i = 1; $i <= 12; $i++) {
+            $chapters[] = "c$i";
+            file_put_contents($dir."/en/g/c$i.md", "# Chapter $i\n\nAbout widgets, widget number $i.\n");
+        }
+        file_put_contents($dir.'/_meta.php', '<?php return '.var_export(['g' => ['icon' => 'x', 'order' => 1, 'chapters' => $chapters]], true).';');
+
+        try {
+            config(['manual.locales' => ['en'], 'manual.source_locale' => 'en']);
+            $this->useContentKeepingConfig($dir);
+
+            $hits = $this->search()->search('widgets', 'en', 5);
+            $this->assertCount(5, $hits);
+            $this->assertSame(['g/c1', 'g/c2', 'g/c3', 'g/c4', 'g/c5'], $this->slugs($hits), 'ties keep tree order');
+            $this->assertCount(12, $this->search()->search('widgets', 'en', 50));
+        } finally {
+            exec('rm -rf '.escapeshellarg($dir));
+        }
+    }
+
+    public function test_decomposed_accents_are_found_and_snippet_stays_valid(): void
+    {
+        $dir = sys_get_temp_dir().'/manual-search-nfd-'.bin2hex(random_bytes(4));
+        mkdir($dir.'/hu/g', 0777, true);
+        file_put_contents($dir.'/_meta.php', "<?php return ['g' => ['icon' => 'x', 'order' => 1, 'chapters' => ['a']]];");
+        $nfd = "E\u{301}rtesi\u{301}te\u{301}si csatorna\u{301}k";
+        file_put_contents($dir.'/hu/g/a.md', "# $nfd\n\nA csatorna\u{301}k be\u{301}a\u{301}llita\u{301}sa.\n");
+
+        try {
+            config(['manual.locales' => ['hu'], 'manual.source_locale' => 'hu']);
+            $this->useContentKeepingConfig($dir);
+
+            $hits = $this->search()->search('ertesites', 'hu');
+            $this->assertSame(['g/a'], $this->slugs($hits));
+            $this->assertTrue(mb_check_encoding($hits[0]['snippet'], 'UTF-8'));
+
+            $hits = $this->search()->search('beallitasa', 'hu');
+            $this->assertStringContainsString("be\u{301}a\u{301}llita\u{301}sa", $hits[0]['snippet']);
+        } finally {
+            exec('rm -rf '.escapeshellarg($dir));
+        }
+    }
+
     public function test_provider_registers_a_singleton(): void
     {
         $this->assertSame(app(ManualSearch::class), app(ManualSearch::class));

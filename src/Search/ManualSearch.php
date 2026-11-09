@@ -60,7 +60,7 @@ final class ManualSearch
         }
 
         $limit = max(1, $limit ?? $this->defaultLimit);
-        $results = [];
+        $matches = [];
 
         foreach ($this->index($effective) as $document) {
             $score = 0;
@@ -83,18 +83,26 @@ final class ManualSearch
                 continue;
             }
 
+            $matches[] = ['document' => $document, 'score' => $score];
+        }
+
+        // Stable sort (PHP 8): ties keep tree order. Snippets only for what is returned.
+        usort($matches, static fn (array $a, array $b): int => $b['score'] <=> $a['score']);
+
+        $results = [];
+
+        foreach (array_slice($matches, 0, $limit) as $match) {
+            $document = $match['document'];
             $results[] = [
                 'slug' => $document['slug'],
                 'section' => explode('/', $document['slug'])[0],
                 'title' => $document['originalTitle'],
                 'snippet' => $this->snippet($document['originalBody'], $terms),
-                'score' => $score,
+                'score' => $match['score'],
             ];
         }
 
-        usort($results, static fn (array $a, array $b): int => $b['score'] <=> $a['score']);
-
-        return array_slice($results, 0, $limit);
+        return $results;
     }
 
     /**
@@ -191,7 +199,7 @@ final class ManualSearch
         $charAt = [];
 
         foreach ($chars as $i => $char) {
-            $folded = self::normalize($char);
+            $folded = strtolower(Ascii::foldChar($char));
             $normalized .= $folded;
 
             for ($b = strlen($folded); $b > 0; $b--) {

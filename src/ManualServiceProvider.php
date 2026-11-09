@@ -37,6 +37,7 @@ final class ManualServiceProvider extends ServiceProvider
                 $app->make(ManualRenderer::class),
                 Cache::store(is_string($store) ? $store : null),
                 self::stringConfig('manual.cache.prefix', 'manual'),
+                $this->configHash($app->make(ContentTree::class)),
             );
         });
     }
@@ -57,6 +58,29 @@ final class ManualServiceProvider extends ServiceProvider
                 __DIR__.'/../config/manual.php' => config_path('manual.php'),
             ], 'manual-config');
         }
+    }
+
+    /**
+     * Hash of every config input that changes rendered output, so a config-only
+     * change (callouts, locales, fallback, links) never serves stale cache.
+     */
+    private function configHash(ContentTree $tree): string
+    {
+        $configured = config('manual.links');
+        $stat = '';
+
+        if (is_string($configured) && $configured !== '' && is_file($configured) && ! str_starts_with($configured, $tree->path().'/')) {
+            $stat = filemtime($configured).'|'.filesize($configured);
+        }
+
+        return sha1((string) json_encode([
+            self::stringList(config('manual.locales')),
+            self::stringConfig('manual.source_locale', 'en'),
+            self::stringList(config('manual.fallback')),
+            self::stringList(config('manual.callouts')),
+            $this->links($tree),
+            $stat,
+        ]));
     }
 
     /**

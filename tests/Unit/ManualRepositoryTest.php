@@ -303,4 +303,54 @@ final class ManualRepositoryTest extends TestCase
         $this->assertNotNull($chapter);
         $this->assertStringContainsString('https://example.com/docs', $chapter['html']);
     }
+
+    public function test_ghost_chapter_is_not_numbered_or_navigated(): void
+    {
+        $dir = $this->copyFixture();
+        file_put_contents($dir.'/_meta.php', "<?php return ['general' => ['icon' => 'home', 'order' => 1, 'chapters' => ['intro', 'ghost', 'setup']], 'advanced' => ['icon' => 'wrench', 'order' => 2, 'chapters' => ['tuning']]];");
+        $this->useContent($dir);
+
+        $tree = $this->repo()->tree('hu');
+        $this->assertSame(['1.1', '1.2'], array_column($tree[0]['chapters'], 'number'));
+
+        $intro = $this->repo()->chapter('general/intro', 'hu');
+        $setup = $this->repo()->chapter('general/setup', 'hu');
+        $this->assertNotNull($intro);
+        $this->assertNotNull($setup);
+        $this->assertSame('general/setup', $intro['next']['slug'] ?? null);
+        $this->assertSame('general/intro', $setup['prev']['slug'] ?? null);
+        $this->assertSame('1.2', $setup['number']);
+        $this->assertSame(2, $setup['position']);
+        $this->assertSame(3, $setup['total']);
+        $this->assertNull($this->repo()->chapter('general/ghost', 'hu'));
+        $this->assertNull($this->repo()->markdown('general/ghost', 'hu'));
+        $this->assertTrue(app()->make(ContentTree::class)->isKnown('general/ghost'));
+    }
+
+    public function test_config_only_change_invalidates_cache(): void
+    {
+        $dir = $this->copyFixture();
+        file_put_contents($dir.'/hu/general/intro.md', "# Bevezetés\n\nElső.\n\n:::tip\n\nTipp szöveg.\n\n:::\n");
+        $this->useContent($dir);
+
+        $withCallout = $this->repo()->chapter('general/intro', 'hu');
+        $keyBefore = $this->repo()->cacheKey('chapter', 'hu', 'general/intro');
+
+        config(['manual.callouts' => []]);
+        app()->forgetInstance(ManualRepository::class);
+        app()->forgetInstance(ManualRenderer::class);
+
+        $without = $this->repo()->chapter('general/intro', 'hu');
+        $this->assertNotNull($withCallout);
+        $this->assertNotNull($without);
+        $this->assertNotSame($withCallout['html'], $without['html']);
+
+        $keyAfterCallouts = $this->repo()->cacheKey('chapter', 'hu', 'general/intro');
+        $this->assertNotSame($keyBefore, $keyAfterCallouts);
+
+        config(['manual.fallback' => []]);
+        app()->forgetInstance(ContentTree::class);
+        app()->forgetInstance(ManualRepository::class);
+        $this->assertNotSame($keyAfterCallouts, $this->repo()->cacheKey('chapter', 'hu', 'general/intro'));
+    }
 }

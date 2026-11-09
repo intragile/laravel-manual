@@ -62,9 +62,34 @@ final class ContentTree
     }
 
     /**
+     * Sections in `order`. With a locale, each section's chapters are limited to
+     * those that have a file in the locale's fallback chain, so numbering,
+     * position and navigation only ever count chapters that exist.
+     *
      * @return list<array{id: string, icon: string, order: int, chapters: list<string>}>
      */
-    public function sections(): array
+    public function sections(?string $locale = null): array
+    {
+        $sections = $this->metaSections();
+
+        if ($locale === null) {
+            return $sections;
+        }
+
+        foreach ($sections as $i => $section) {
+            $sections[$i]['chapters'] = array_values(array_filter(
+                $section['chapters'],
+                fn (string $chapter): bool => $this->hasFile($section['id'].'/'.$chapter, $locale),
+            ));
+        }
+
+        return $sections;
+    }
+
+    /**
+     * @return list<array{id: string, icon: string, order: int, chapters: list<string>}>
+     */
+    private function metaSections(): array
     {
         $raw = $this->loadArray($this->path.'/_meta.php');
         $sections = [];
@@ -103,11 +128,11 @@ final class ContentTree
     /**
      * @return list<string> `section/chapter` slugs in tree order
      */
-    public function orderedSlugs(): array
+    public function orderedSlugs(?string $locale = null): array
     {
         $slugs = [];
 
-        foreach ($this->sections() as $section) {
+        foreach ($this->sections($locale) as $section) {
             foreach ($section['chapters'] as $chapter) {
                 $slugs[] = $section['id'].'/'.$chapter;
             }
@@ -119,9 +144,9 @@ final class ContentTree
     /**
      * Chapter number as `section.chapter`, e.g. "2.1"; empty for an unknown slug.
      */
-    public function number(string $slug): string
+    public function number(string $slug, ?string $locale = null): string
     {
-        foreach ($this->sections() as $sectionIndex => $section) {
+        foreach ($this->sections($locale) as $sectionIndex => $section) {
             foreach ($section['chapters'] as $chapterIndex => $chapter) {
                 if ($slug === $section['id'].'/'.$chapter) {
                     return ($sectionIndex + 1).'.'.($chapterIndex + 1);
@@ -139,6 +164,21 @@ final class ContentTree
     public function isKnown(string $slug): bool
     {
         return in_array($slug, $this->orderedSlugs(), true);
+    }
+
+    /**
+     * Whether a `_meta` slug has a file in any chain locale. Only call with
+     * slugs taken from `_meta.php`.
+     */
+    private function hasFile(string $slug, string $locale): bool
+    {
+        foreach ($this->chain($locale) as $candidate) {
+            if (is_file($this->path.'/'.$candidate.'/'.$slug.'.md')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

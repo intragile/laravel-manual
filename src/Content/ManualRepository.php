@@ -30,6 +30,7 @@ final class ManualRepository
         private readonly ManualRenderer $renderer,
         private readonly CacheRepository $cache,
         private readonly string $cachePrefix,
+        private readonly string $configHash = '',
     ) {}
 
     /**
@@ -111,11 +112,12 @@ final class ManualRepository
     public function cacheKey(string $kind, string $locale, string $slug = ''): string
     {
         return sprintf(
-            '%s:v%d:%s:%s:%s%s',
+            '%s:v%d:%s:%s:%s:%s%s',
             $this->cachePrefix,
             self::CACHE_VERSION,
             $kind,
             $locale,
+            $this->configHash,
             $this->fingerprint(),
             $slug === '' ? '' : ':'.$slug,
         );
@@ -162,7 +164,7 @@ final class ManualRepository
     {
         $tree = [];
 
-        foreach ($this->tree->sections() as $section) {
+        foreach ($this->tree->sections($locale) as $section) {
             $chapters = [];
 
             foreach ($section['chapters'] as $chapter) {
@@ -175,7 +177,7 @@ final class ManualRepository
 
                 $chapters[] = [
                     'slug' => $slug,
-                    'number' => $this->tree->number($slug),
+                    'number' => $this->tree->number($slug, $locale),
                     'title' => $this->renderer->title($source['markdown']),
                     'summary' => $this->renderer->summary($source['markdown']),
                 ];
@@ -204,7 +206,7 @@ final class ManualRepository
         }
 
         $markdown = $source['markdown'];
-        $ordered = $this->tree->orderedSlugs();
+        $ordered = $this->tree->orderedSlugs($locale);
         $index = array_search($slug, $ordered, true);
 
         if ($index === false) {
@@ -216,7 +218,7 @@ final class ManualRepository
         return [
             'slug' => $slug,
             'section' => explode('/', $slug)[0],
-            'number' => $this->tree->number($slug),
+            'number' => $this->tree->number($slug, $locale),
             'title' => $this->renderer->title($markdown),
             'summary' => $this->renderer->summary($markdown),
             'html' => $this->renderer->toHtml($markdown, $source['locale']),

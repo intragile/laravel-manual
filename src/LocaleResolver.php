@@ -8,9 +8,9 @@ use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Http\Request;
 
 /**
- * Resolves the locale a request ASKS for. It is deliberately not limited to the
- * allowlist: the repository applies the allowlist and the fallback chain and
- * reports `fallback: true` when it serves another language.
+ * Resolves the locale a request asks for: an allowed client locale when there is one,
+ * otherwise the client's first valid (unallowed) language, which the repository serves
+ * through the fallback chain with `fallback: true`.
  *
  * @internal Not part of the public API; it may change in any release.
  */
@@ -21,44 +21,58 @@ final class LocaleResolver
     public function __construct(private readonly Config $config) {}
 
     /**
-     * The first syntactically valid candidate of: ?locale, the Accept-Language tags in order,
-     * the application locale. An allowed candidate is returned in its configured spelling
-     * (`pt_BR` for `pt-br`); a region tag whose full form is not allowed is offered as its
-     * primary subtag (`hu-HU` => `hu`). Nothing valid at all: the source locale.
+     * Client candidates, in order: ?locale, then each Accept-Language tag in q order (full tag,
+     * then primary subtag).
+     *
+     * 1. The first client candidate in `manual.locales` + `source_locale`, in its configured
+     *    spelling (`pt-br` => `pt_BR`).
+     * 2. Else, when the client sent any syntactically valid candidate, the primary subtag of the
+     *    first one (lower case). It is deliberately not allowlisted: the repository serves the
+     *    fallback chain and reports `fallback: true`.
+     * 3. Else (nothing usable from the client) the application locale when it is allowed,
+     *    otherwise the source locale. The app locale never competes with a client request, so an
+     *    app locale equal to the source cannot hide a fallback.
      */
     public function resolve(Request $request): string
     {
-        $query = $request->query('locale');
+        $allowed = $this->allowed();
 
-        if (is_string($query) && ($locale = $this->candidate($query)) !== null) {
-            return $locale;
+        $tags = [];
+        $query = $request->query('locale');
+        if (is_string($query)) {
+            $tags[] = $query;
+        }
+        foreach ($request->getLanguages() as $language) {
+            $tags[] = $language;
         }
 
-        foreach ($request->getLanguages() as $language) {
-            if (($locale = $this->candidate($language)) !== null) {
-                return $locale;
+        $firstValid = null;
+
+        foreach ($tags as $tag) {
+            $full = $this->normalise($tag);
+            $primary = explode('-', $full)[0];
+
+            foreach ([$full, $primary] as $candidate) {
+                if (isset($allowed[$candidate])) {
+                    return $allowed[$candidate];
+                }
+            }
+
+            if ($firstValid === null && (preg_match(self::PATTERN, $full) === 1 || preg_match(self::PATTERN, $primary) === 1)) {
+                $firstValid = $primary;
             }
         }
 
-        return $this->candidate(app()->getLocale()) ?? $this->sourceLocale();
+        if ($firstValid !== null) {
+            return $firstValid;
+        }
+
+        return $allowed[$this->normalise(app()->getLocale())] ?? $this->sourceLocale();
     }
 
-    private function candidate(string $tag): ?string
+    private function normalise(string $tag): string
     {
-        $full = strtolower(str_replace('_', '-', trim($tag)));
-        $primary = explode('-', $full)[0];
-        $allowed = $this->allowed();
-
-        if (preg_match(self::PATTERN, $full) === 1) {
-            return $allowed[$full] ?? $allowed[$primary] ?? $primary;
-        }
-
-        // e.g. zh-hant-tw: the full tag is not a supported shape, its primary subtag may be.
-        if ($primary !== $full && preg_match(self::PATTERN, $primary) === 1) {
-            return $allowed[$primary] ?? $primary;
-        }
-
-        return null;
+        return strtolower(str_replace('_', '-', trim($tag)));
     }
 
     /**
@@ -74,7 +88,7 @@ final class LocaleResolver
 
         $normalised = [];
         foreach ($locales as $locale) {
-            $normalised[strtolower(str_replace('_', '-', $locale))] ??= $locale;
+            $normalised[$this->normalise($locale)] ??= $locale;
         }
 
         return $normalised;

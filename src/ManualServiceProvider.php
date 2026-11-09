@@ -60,6 +60,8 @@ final class ManualServiceProvider extends ServiceProvider
                 is_numeric($limit) ? (int) $limit : 10,
             );
         });
+
+        $this->app->singleton(ManualManager::class);
     }
 
     public function boot(): void

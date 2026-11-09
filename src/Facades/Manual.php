@@ -10,6 +10,7 @@ use IntrAgile\Manual\Content\ManualRepository;
 use IntrAgile\Manual\Http\Controllers\ManualController;
 use IntrAgile\Manual\Http\Middleware\EnsureManualAccess;
 use IntrAgile\Manual\Http\Middleware\ForceJsonResponse;
+use IntrAgile\Manual\ManualManager;
 use IntrAgile\Manual\Search\ManualSearch;
 
 /**
@@ -20,9 +21,9 @@ use IntrAgile\Manual\Search\ManualSearch;
  * @method static list<TreeSection> tree(string $locale)
  * @method static Chapter|null chapter(string $slug, string $locale)
  * @method static array{markdown: string, locale: string}|null markdown(string $slug, string $locale)
+ * @method static list<SearchHit> search(string $query, string $locale, ?int $limit = null)
  *
- * @see ManualRepository
- * @see ManualSearch
+ * @see ManualManager
  */
 final class Manual extends Facade
 {
@@ -45,16 +46,6 @@ final class Manual extends Facade
             });
     }
 
-    /**
-     * Server-side full-text search (see ManualSearch::search()).
-     *
-     * @return list<SearchHit>
-     */
-    public static function search(string $query, string $locale, ?int $limit = null): array
-    {
-        return app(ManualSearch::class)->search($query, $locale, $limit);
-    }
-
     private static function config(string $key, string $default): string
     {
         $value = config('manual.routes.'.$key, $default);
@@ -64,6 +55,6 @@ final class Manual extends Facade
 
     protected static function getFacadeAccessor(): string
     {
-        return ManualRepository::class;
+        return ManualManager::class;
     }
 }

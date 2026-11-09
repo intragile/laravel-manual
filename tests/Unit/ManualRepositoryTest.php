@@ -285,11 +285,11 @@ final class ManualRepositoryTest extends TestCase
         $this->assertSame($expectedTree, $this->repo()->tree('hu'));
     }
 
-    public function test_facade_resolves_the_repository_singleton(): void
+    public function test_facade_proxies_the_repository(): void
     {
-        $this->assertSame($this->repo(), Manual::getFacadeRoot());
         $this->assertSame($this->repo()->tree('hu'), Manual::tree('hu'));
-        Manual::routes();
+        $this->assertSame($this->repo()->chapter('general/intro', 'hu'), Manual::chapter('general/intro', 'hu'));
+        $this->assertSame($this->repo()->markdown('general/intro', 'hu'), Manual::markdown('general/intro', 'hu'));
     }
 
     public function test_links_file_defaults_to_path_links_php(): void

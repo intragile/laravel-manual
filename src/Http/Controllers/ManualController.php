@@ -8,24 +8,22 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Routing\Controller;
 use IntrAgile\Manual\Content\ContentTree;
-use IntrAgile\Manual\Content\ManualRepository;
 use IntrAgile\Manual\Http\Resources\ChapterResource;
 use IntrAgile\Manual\Http\Resources\SearchResultResource;
 use IntrAgile\Manual\Http\Resources\SectionResource;
 use IntrAgile\Manual\LocaleResolver;
-use IntrAgile\Manual\Search\ManualSearch;
+use IntrAgile\Manual\ManualManager;
 
 /**
- * The requested locale (?locale, Accept-Language, app locale) is passed to the repository
- * unfiltered; the repository applies the allowlist and the fallback chain.
+ * The resolved client locale is passed to the repository, which applies the allowlist and
+ * the fallback chain and reports `fallback`.
  *
  * @internal Not part of the public API; it may change in any release.
  */
 final class ManualController extends Controller
 {
     public function __construct(
-        private readonly ManualRepository $repository,
-        private readonly ManualSearch $search,
+        private readonly ManualManager $manual,
         private readonly ContentTree $tree,
         private readonly LocaleResolver $locales,
     ) {}
@@ -53,7 +51,7 @@ final class ManualController extends Controller
         $requested = $this->locales->resolve($request);
         $served = $this->tree->resolveLocale($requested);
 
-        return SectionResource::collection($this->repository->tree($requested))->additional([
+        return SectionResource::collection($this->manual->tree($requested))->additional([
             'locale' => $served,
             'fallback' => $served !== $requested,
         ]);
@@ -73,7 +71,7 @@ final class ManualController extends Controller
             'locale' => ['sometimes', 'string', 'max:20'],
         ]);
 
-        $chapter = $this->repository->chapter($validated['slug'], $this->locales->resolve($request));
+        $chapter = $this->manual->chapter($validated['slug'], $this->locales->resolve($request));
         abort_if($chapter === null, 404);
 
         return new ChapterResource($chapter);
@@ -101,7 +99,7 @@ final class ManualController extends Controller
         $requested = $this->locales->resolve($request);
         $served = $this->tree->resolveLocale($requested);
 
-        return SearchResultResource::collection($this->search->search($validated['q'], $requested))->additional([
+        return SearchResultResource::collection($this->manual->search($validated['q'], $requested))->additional([
             'locale' => $served,
             'fallback' => $served !== $requested,
         ]);

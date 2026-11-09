@@ -33,10 +33,38 @@ final class LocaleResolverTest extends TestCase
         $this->assertSame('en', $this->resolve(['locale' => 'en'], 'hu'));
     }
 
-    public function test_query_is_not_filtered_by_the_allowlist(): void
+    public function test_unallowed_query_yields_to_an_allowed_header_language(): void
+    {
+        $this->assertSame('en', $this->resolve(['locale' => 'de'], 'en'));
+    }
+
+    public function test_first_allowed_header_language_wins_over_an_earlier_unallowed_one(): void
+    {
+        config(['manual.locales' => ['hu', 'en'], 'manual.source_locale' => 'hu', 'manual.fallback' => ['en']]);
+
+        $this->assertSame('en', $this->resolve(acceptLanguage: 'de, en;q=0.9'));
+    }
+
+    public function test_unallowed_request_is_passed_on_when_nothing_allowed_was_asked_for(): void
     {
         // The repository applies the allowlist and reports the fallback.
-        $this->assertSame('de', $this->resolve(['locale' => 'de'], 'hu'));
+        $this->assertSame('de', $this->resolve(['locale' => 'de'], 'fr'));
+        $this->assertSame('de', $this->resolve(acceptLanguage: 'de-DE, fr;q=0.9'));
+    }
+
+    public function test_app_locale_does_not_compete_with_a_client_request(): void
+    {
+        config(['manual.locales' => ['hu'], 'manual.source_locale' => 'hu']);
+        App::setLocale('hu');
+
+        $this->assertSame('en', $this->resolve(['locale' => 'en']));
+    }
+
+    public function test_disallowed_app_locale_gives_the_source_locale(): void
+    {
+        App::setLocale('de');
+
+        $this->assertSame('en', $this->resolve());
     }
 
     public function test_query_is_normalised(): void
@@ -53,7 +81,8 @@ final class LocaleResolverTest extends TestCase
 
     public function test_unconfigured_region_tag_is_requested_as_its_language(): void
     {
-        $this->assertSame('de', $this->resolve(acceptLanguage: 'de-DE,hu;q=0.9'));
+        $this->assertSame('de', $this->resolve(acceptLanguage: 'de-DE'));
+        $this->assertSame('hu', $this->resolve(acceptLanguage: 'de-DE,hu;q=0.9'));
     }
 
     public function test_configured_region_locale_matches_the_full_tag_in_its_configured_spelling(): void
@@ -98,6 +127,7 @@ final class LocaleResolverTest extends TestCase
         App::setLocale('hu');
 
         $this->assertSame('hu', $this->resolve());
+        $this->assertSame('hu', $this->resolve(['locale' => '../etc'], '*'));
     }
 
     public function test_header_wins_over_app_locale(): void

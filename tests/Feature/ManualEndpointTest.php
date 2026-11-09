@@ -148,6 +148,49 @@ final class ManualEndpointTest extends TestCase
             ->assertJsonPath('data.0.slug', 'general/intro');
     }
 
+    public function test_first_allowed_accept_language_is_served(): void
+    {
+        config(['manual.locales' => ['hu', 'en'], 'manual.source_locale' => 'hu', 'manual.fallback' => ['en']]);
+
+        $this->getJson('/manual', ['Accept-Language' => 'de, en;q=0.9'])
+            ->assertOk()
+            ->assertJsonPath('locale', 'en')
+            ->assertJsonPath('fallback', false)
+            ->assertJsonPath('data.0.title', 'General');
+
+        $this->getJson('/manual/chapter?slug=general/intro&locale=de', ['Accept-Language' => 'en'])
+            ->assertOk()
+            ->assertJsonPath('data.locale', 'en')
+            ->assertJsonPath('data.fallback', false);
+    }
+
+    public function test_app_locale_equal_to_the_source_does_not_hide_the_fallback(): void
+    {
+        config(['manual.locales' => ['hu'], 'manual.source_locale' => 'hu']);
+        app()->setLocale('hu');
+
+        $this->getJson('/manual?locale=en')
+            ->assertOk()
+            ->assertJsonPath('locale', 'hu')
+            ->assertJsonPath('fallback', true);
+
+        $this->getJson('/manual/chapter?slug=general/intro&locale=en')
+            ->assertOk()
+            ->assertJsonPath('data.locale', 'hu')
+            ->assertJsonPath('data.fallback', true);
+    }
+
+    public function test_allowed_app_locale_is_used_without_a_client_locale(): void
+    {
+        app()->setLocale('en');
+
+        $this->getJson('/manual', ['Accept-Language' => ''])
+            ->assertOk()
+            ->assertJsonPath('locale', 'en')
+            ->assertJsonPath('fallback', false)
+            ->assertJsonPath('data.0.title', 'General');
+    }
+
     public function test_unknown_chapter_is_404(): void
     {
         $this->getJson('/manual/chapter?slug=general/nope')->assertNotFound();

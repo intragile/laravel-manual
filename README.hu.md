@@ -19,8 +19,9 @@ keres benne, és **beállítható hozzáférésű JSON API-n** ad ki. Egy konzol
   fordításból, a visszaesési lánc következő nyelvén jön, és ezt jelzi.
 - **Szerveroldali keresés.** Nyelvenkénti szótövezés, súlyozott rangsor, egyszerű szöveges
   kivonatok. A teljes tartalom nem hagyja el a szervert.
-- **Kézikönyv-jelölések.** Hivatkozás másik fejezetre, az alkalmazásod útvonalaira és külső
-  URL-ekre kulccsal, ikonok és kiemelő dobozok (`tip`, `warning`, ...), mindez szerveroldalon oldódik fel.
+- **Kézikönyv-jelölések.** Hivatkozhatsz másik fejezetre, az alkalmazásod útvonalaira és külső
+  URL-ekre kulccsal, tehetsz be ikonokat és kiemelő dobozokat (`tip`, `warning`, ...). Mindez
+  szerveroldalon oldódik fel.
 - **Biztonságos HTML.** A nyers HTML kikerül, a veszélyes linkek kiesnek, így a `html` mező
   `v-html`-be való.
 - **Te döntöd el, ki éri el.** Nyilvános, csak bejelentkezettek, gate, vagy kikapcsolva.
@@ -175,6 +176,8 @@ Szabályok:
 - A dobozok egymásba ágyazhatók. Az ismeretlen típus és a lezáratlan doboz hiba a `manual:check`
   szerint.
 
+A példa magázó, mert a kézikönyv a végfelhasználónak szól; a fejlesztői leírások tegeznek.
+
 Így renderelődnek: `<div class="manual-callout" data-type="tip">...</div>`.
 
 ### Tokenek
@@ -195,7 +198,8 @@ függőleges vonalat írni kell; a saját fejezeteidre ugyanez a szabály érvé
 - **A token címkéje nem tartalmazhat soron belüli jelölést** (`**félkövér**`, `` `kód` `` stb.);
   az ilyen token szó szerinti szöveg marad. Tartsd egyszerűnek a címkét.
 - A tokent csak szövegben oldja fel, kódrészletben és kódblokkban soha. Ha egy tokent **szó szerint
-  akarsz megmutatni**, tedd kódrészletbe: `` `[[manual:a/b]]` ``.
+  akarsz megmutatni**, tedd kódrészletbe: `` `[[manual:a/b]]` ``. A zárójelek kódolása
+  (`&#91;&#91;`) kódon kívül nem segít: az is tokenként értelmeződik.
 - A `manual:check` jelzi a hibás alakú tokent, az ismeretlen fajtát, a `_meta.php`-ban nem szereplő
   `manual` célt, az ismeretlen `link` kulcsot, és ha a `known_routes` meg van adva, az ismeretlen
   route-ot.
@@ -244,7 +248,7 @@ middleware-ben fut, tehát az automatikus route-okra és a `Manual::routes()`-ra
 |---|---|
 | `public` | Bárki. |
 | `authenticated` | Be kell jelentkezni, különben **401**. |
-| gate neve | A `Gate::allows(név)` dönt. Az elutasított vendég **401**-et, az elutasított bejelentkezett felhasználó **403**-at kap. |
+| gate neve | A `Gate::allows(név)` dönt. Az elutasított, nem bejelentkezett látogató **401**-et, az elutasított bejelentkezett felhasználó **403**-at kap. |
 | `disabled` | Minden route **404**. |
 
 Gate neve nem lehet `public`, `authenticated` vagy `disabled`: ezek a szavak mindig a táblázatban
@@ -272,20 +276,22 @@ Ha a Sanctum-guardod nem az alapértelmezett, biztonságosabb a gate vagy az egy
 
 A körülvevő csoport middleware-jei (például az `auth:sanctum`) a csomag saját middleware-jei
 **előtt** futnak, így az `Accept: application/json`-t kényszerítő előtt is. Az `Accept` fejléc
-nélkül érkező vendéget ezért az alkalmazásod saját, hitelesítetlen kérésekre vonatkozó kezelése
+nélkül érkező nem bejelentkezett látogatót ezért az alkalmazásod saját, hitelesítetlen kérésekre vonatkozó kezelése
 utasítja el, amely alapból a bejelentkező route-ra irányít át. Állítsd be, hogy az alkalmazásod az
 API-ra JSON-t adjon, például a `bootstrap/app.php`-ban:
 `$exceptions->shouldRenderJsonWhen(fn ($request) => $request->is('api/*'))`.
 
-A gate vendégre is lefut, de a Laravel csak akkor hívja meg vendégnél a gate callbackjét, ha annak
-első, user paramétere nullable, vagy `null` az alapértéke. Ha a gate-en vendéget is át akarsz
+A gate a nem bejelentkezett látogatóra is lefut, de a Laravel csak akkor hívja meg nála a gate callbackjét, ha annak
+első, user paramétere nullable, vagy `null` az alapértéke. Ha a gate-en a nem bejelentkezett látogatót is át akarod
 engedni, így deklaráld:
 
 ```php
+use App\Models\User;
+
 Gate::define('view-manual', fn (?User $user): bool => $user === null || $user->can_see_help);
 ```
 
-Az a callback, amely kötelezően `User`-t vár, vagy egyáltalán nincs paramétere, minden vendéget
+Az a callback, amely kötelezően `User`-t vár, vagy egyáltalán nincs paramétere, minden nem bejelentkezett látogatót
 401-gyel utasít el.
 
 ## API
@@ -350,13 +356,13 @@ Minden végpont elfogadja a `?locale=` paramétert is (legfeljebb 20 karakteres 
 }
 ```
 
-- A `number` szöveg (`"2.1"`); a `prev` és a `next` `{slug, title}` vagy `null`. Az a szomszéd,
-  amelynek nincs fájlja a láncban, `null`, nem ugorja át.
+- A `number` szöveg (`"2.1"`); a `prev` és a `next` `{slug, title}`, vagy `null` az első, illetve az
+  utolsó fejezetnél; a láncban fájl nélküli fejezeteket átugorja.
 - Az a fejezet, amelynek a láncban egyetlen nyelven sincs fájlja, kimarad a fából, és a `number`,
   `position`, `total`, `prev` és `next` csak a nyelvhez ténylegesen létező fejezeteket számolja.
 - A fejezet `locale` mezője a ténylegesen beolvasott fájl nyelve, a `fallback` pedig akkor `true`,
   ha ez eltér a kért nyelvtől. A fejezetválasznak nincs legfelső `locale`-ja.
-- A fa és a keresés legfelső `locale` mezője az a nyelv, amelyre a kérés feloldódott: a kért nyelv,
+- A fa és a keresés legfelső `locale` mezője a kérésből meghatározott nyelv: a kért nyelv,
   ha be van állítva, különben a `source_locale`. A `fallback` akkor `true`, ha a kérést a saját
   nyelvén nem lehetett teljesíteni. Ez **nyelvszintű**: ha egyetlen fejezet hiányzik egy beállított
   fordításból, és a visszaesésből jön, az nem kapcsolja be a fa vagy a keresés `fallback`-jét. Ahhoz
@@ -413,7 +419,7 @@ megjelölésével jelzi:
   nem eltérés; a hiányzó bekezdés vagy szakasz az.
 
 Bármilyen hibánál kiírja az üzeneteket, és nem nulla kilépési kóddal tér vissza, így pull request
-kapuja lehet:
+ellenőrző lépés lehet:
 
 ```yaml
 # .github/workflows/tests.yml
@@ -444,7 +450,8 @@ fejezetben az angol szótövezővel.
 
 Saját szótövező regisztrálásához valósítsd meg az `IntrAgile\Manual\Search\Stemmer`
 interfészt, és nyelv szerint add meg. Az osztálynak argumentum nélküli konstruktor kell, és
-kisbetűs ASCII szót kap (az ékezetek már le vannak hántva):
+kisbetűs ASCII szót kap (az ékezetek már le vannak hántva). A nyelvnek szerepelnie kell a
+`locales`-ben is; a `stemmers` bejegyzés önmagában nem engedélyezi:
 
 ```php
 namespace App\Search;
@@ -455,6 +462,10 @@ final class GermanStemmer implements Stemmer
 {
     public function stem(string $normalizedWord): string
     {
+        if (strlen($normalizedWord) < 5) {
+            return $normalizedWord;
+        }
+
         return preg_replace('/(en|er|e|n|s)$/', '', $normalizedWord) ?? $normalizedWord;
     }
 }
@@ -538,21 +549,23 @@ vannak gyorsítótárazva. A bejegyzések csak tömböket és szövegeket tartal
 visszaállítását tiltó store-okkal (`cache.serializable_classes = false`) is működnek. A kulcs
 ezekből áll össze:
 
+- a `cache.prefix`;
 - `CACHE_VERSION`, a csomag egy konstansa, amelyet a tárolt alak változásakor emelnek;
-- a kimenetet befolyásoló config hash-e (`locales`, `source_locale`, `fallback`, `callouts` és a
-  feloldott linkek);
+- a cache **generáció**;
+- a bejegyzés fajtája (`tree`, `chapter` vagy `search`) és a tényleges nyelv;
+- a kimenetet befolyásoló config hash-e (`locales`, `source_locale`, `fallback`, `callouts`, a
+  feloldott linkek, és egy külső linkfájl módosítási ideje és mérete);
 - a tartalom ujjlenyomata: a kézikönyv könyvtárának minden `.md` és `.php` fájljának útvonala,
   módosítási ideje és mérete;
-- a cache **generáció**.
+- a fejezet slugja, a fejezet-bejegyzéseknél.
 
 Ha egy deploy módosít egy fájlt vagy a configot, a változás anélkül jelenik meg, hogy bármit
-törölni kellene. A fa és a fejezetek bejegyzései egy nap, a keresési index egy hét után lejárnak,
-hogy a régi kulcsok ne halmozódjanak fel.
+törölni kellene. Minden bejegyzés egy nap után lejár, hogy a régi kulcsok ne halmozódjanak fel.
 
 A `php artisan manual:clear` növeli a generációt: minden régi bejegyzés egyszerre elérhetetlenné
 válik, és magától lejár. **Bármilyen** cache store-on működik (nincs címke, nincs kulcslistázás). A
-futó workerek a következő kérésnél már az új generációt olvassák, mert a csomag kötései
-**scoped** hatókörűek: kérésenként vagy jobonként új példány készül, ezért az Octane és a queue
+futó workerek a következő kérésnél már az új generációt olvassák, mert a repository, a keresés és a manager
+kötései **scoped** hatókörűek: kérésenként vagy jobonként új példány készül, ezért az Octane és a queue
 workerek biztonságosak.
 
 Korlát: az előző szerkesztéssel azonos másodpercben végzett módosítás, ha a fájl mérete nem

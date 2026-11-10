@@ -146,7 +146,7 @@ final class ManualSearch
         }
 
         $index = $this->buildIndex($locale);
-        $this->cache->put($key, $index, now()->addWeek());
+        $this->cache->put($key, $index, now()->addDay());
 
         return $index;
     }

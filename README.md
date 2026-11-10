@@ -189,7 +189,8 @@ Markdown table cell; the same rule applies to your chapters:
 - **A token label cannot contain inline markup** (`**bold**`, `` `code` ``, ...); such a token stays
   literal text. Keep labels plain.
 - Tokens are resolved only in text, never in code spans or code blocks. To **show a token
-  verbatim**, wrap it in a code span: `` `[[manual:a/b]]` ``.
+  verbatim**, wrap it in a code span: `` `[[manual:a/b]]` ``. Escaping the brackets
+  (`&#91;&#91;`) does not help outside code: it is still read as a token.
 - `manual:check` reports a malformed token, an unknown kind, a `manual` target that is not in
   `_meta.php`, an unknown `link` key and, when `known_routes` is set, an unknown route.
 
@@ -275,6 +276,8 @@ parameter, the user, is nullable or defaults to `null`. To let guests through a 
 that way:
 
 ```php
+use App\Models\User;
+
 Gate::define('view-manual', fn (?User $user): bool => $user === null || $user->can_see_help);
 ```
 
@@ -343,8 +346,8 @@ Every endpoint also takes `?locale=` (a string of up to 20 characters).
 }
 ```
 
-- `number` is a string (`"2.1"`); `prev` and `next` are `{slug, title}` or `null`. A neighbour whose
-  chapter has no file in the chain is `null`, not skipped.
+- `number` is a string (`"2.1"`); `prev` and `next` are `{slug, title}`, or `null` at the first or last
+  chapter; chapters without a file in the chain are skipped.
 - A chapter that has no file in any language of the chain is left out of the tree, and `number`,
   `position`, `total`, `prev` and `next` only count chapters that exist for the language.
 - The chapter's `locale` is the language of the file actually read, and `fallback` is `true` when it
@@ -434,7 +437,8 @@ Fallback content is searched with the **requested** language's stemmer: a Hungar
 under an English request is searched with the English stemmer.
 
 To register your own, implement `IntrAgile\Manual\Search\Stemmer` and list it by locale. The class
-needs a constructor without arguments, and receives a lowercase ASCII word (accents already folded):
+needs a constructor without arguments, and receives a lowercase ASCII word (accents already folded).
+The language must also be listed in `locales`; the `stemmers` entry alone does not enable it:
 
 ```php
 namespace App\Search;
@@ -445,6 +449,10 @@ final class GermanStemmer implements Stemmer
 {
     public function stem(string $normalizedWord): string
     {
+        if (strlen($normalizedWord) < 5) {
+            return $normalizedWord;
+        }
+
         return preg_replace('/(en|er|e|n|s)$/', '', $normalizedWord) ?? $normalizedWord;
     }
 }
@@ -524,20 +532,21 @@ The tree, each chapter (rendered HTML included) and the search index are cached 
 store. Entries hold only arrays and strings, so they work with stores that refuse to unserialize
 objects (`cache.serializable_classes = false`). A key is built from:
 
+- `cache.prefix`;
 - `CACHE_VERSION`, a constant of the package, bumped when the stored shape changes;
-- a hash of the config that affects output (`locales`, `source_locale`, `fallback`, `callouts` and
-  the resolved links);
+- the cache **generation**;
+- the kind of entry (`tree`, `chapter` or `search`) and the effective locale;
+- a hash of the config that affects output (`locales`, `source_locale`, `fallback`, `callouts`, the
+  resolved links, and the modification time and size of an external links file);
 - a content fingerprint: the path, modification time and size of every `.md` and `.php` file in
   the manual directory;
-- the cache **generation**.
+- the chapter slug, for chapter entries.
 
-A deploy that changes a file or the config therefore shows up without clearing anything. Tree and
-chapter entries expire after one day and the search index after a week, so old keys do not pile
-up.
+A deploy that changes a file or the config therefore shows up without clearing anything. All entries expire after one day, so old keys do not pile up.
 
 `php artisan manual:clear` bumps the generation: every old entry becomes unreachable at once and
 simply expires. It works on **any** cache store (no tags, no key listing). Running workers pick
-the new generation up on their next request, because the package's bindings are **scoped**: a
+the new generation up on their next request, because the repository, search and manager bindings are **scoped**: a
 fresh instance per request or job, so Octane and queue workers are safe.
 
 Limitation: an edit made within the same second as the previous one that leaves the file size

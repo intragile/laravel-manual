@@ -62,7 +62,8 @@ return [
 
     // Route names `[[route:name|...]]` may use, checked by `manual:check`; null skips the check.
     // null | list<string> | callable(): iterable<string>, e.g. 'App\Support\Routes::names'
-    // (a string callable keeps `config:cache` working; a Closure does not).
+    // (a string callable keeps `config:cache` working; a Closure does not). The callable must be a
+    // string callable or a Closure: an array callable is read as a list of route names.
     'known_routes' => null,
 
     /*

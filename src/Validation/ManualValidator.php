@@ -20,6 +20,8 @@ use IntrAgile\Manual\Rendering\ManualRenderer;
  * Markup checks (raw HTML, tokens, headings, `:::` markers) ignore fenced code blocks;
  * raw HTML and token checks also ignore inline code spans, the same way the renderer
  * leaves code alone. Indented (4-space) code blocks are not recognised as code.
+ *
+ * @internal
  */
 final class ManualValidator
 {
@@ -480,8 +482,10 @@ final class ManualValidator
             } elseif ($type === '') {
                 $unbalanced = true;
             } else {
-                if (! in_array($type, $this->callouts, true)) {
-                    $allowed = $this->callouts === [] ? 'none' : implode(', ', $this->callouts);
+                $callouts = ManualRenderer::validCallouts($this->callouts);
+
+                if (! in_array($type, $callouts, true)) {
+                    $allowed = $callouts === [] ? 'none' : implode(', ', $callouts);
                     $errors[] = $where.'unknown callout type ":::'.$type.'" (allowed: '.$allowed.')';
                 }
 

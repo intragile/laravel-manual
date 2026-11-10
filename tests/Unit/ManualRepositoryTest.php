@@ -250,6 +250,7 @@ final class ManualRepositoryTest extends TestCase
         $this->assertSame('Bevezetés', $this->repo()->tree('hu')[0]['chapters'][0]['title']);
 
         file_put_contents($dir.'/hu/general/intro.md', "# Új cím\n\nÚj összefoglaló, hosszabb szöveg.\n");
+        app()->forgetInstance(ManualRepository::class); // fingerprint is memoized per instance (scoped per request)
 
         $this->assertSame('Új cím', $this->repo()->tree('hu')[0]['chapters'][0]['title']);
         $chapter = $this->repo()->chapter('general/intro', 'hu');
@@ -274,6 +275,7 @@ final class ManualRepositoryTest extends TestCase
         $this->useContent($dir);
         $before = $this->repo()->fingerprint();
         file_put_contents($dir.'/hu/general/setup.md', "# Beállítás\n\nMás.\n");
+        app()->forgetInstance(ManualRepository::class);
         $this->assertNotSame($before, $this->repo()->fingerprint());
     }
 

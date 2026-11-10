@@ -6,6 +6,8 @@ namespace IntrAgile\Manual\Content;
 
 /**
  * The language-independent manual tree (`{path}/_meta.php`) plus locale resolution.
+ *
+ * @internal
  */
 final class ContentTree
 {

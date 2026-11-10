@@ -22,6 +22,8 @@ use League\CommonMark\MarkdownConverter;
  * attributes. Text nodes are already HTML-escaped by CommonMark, so labels are used as they
  * are (escaping them again would double-encode); values that become attributes are restricted
  * to a safe charset or escaped.
+ *
+ * @internal
  */
 final class ManualRenderer
 {
@@ -85,11 +87,13 @@ final class ManualRenderer
     public function summary(string $markdown): string
     {
         $body = preg_replace('/^\#\s+.+$/m', '', $markdown, 1) ?? $markdown;
+        // Fenced code blocks (an unclosed fence runs to the end) never make a summary.
+        $body = preg_replace('/^[ ]{0,3}(`{3,}|~{3,})[^\n]*\n.*?(?:^[ ]{0,3}\1[`~]*[ \t]*$|\z)/ms', '', $body) ?? $body;
 
         foreach (preg_split('/\R{2,}/', trim($body)) ?: [] as $block) {
             $block = trim($block);
 
-            if ($block !== '' && preg_match('/^(#|[-*>]|\d+\.|:::)/', $block) !== 1) {
+            if ($block !== '' && preg_match('/^(#|[-*>|]|!\[|\d+\.|:::)/', $block) !== 1) {
                 return trim(preg_replace('/\s+/', ' ', strip_tags($this->stripMarkdown($block))) ?? '');
             }
         }
@@ -213,22 +217,36 @@ final class ManualRenderer
     }
 
     /**
+     * The callout names that are usable: only `[A-Za-z0-9_-]+` names count, for the renderer
+     * and for `manual:check` alike.
+     *
+     * @param  list<string>  $callouts
+     * @return list<string>
+     *
+     * @internal
+     */
+    public static function validCallouts(array $callouts): array
+    {
+        return array_values(array_filter(
+            $callouts,
+            static fn (string $type): bool => preg_match('/^[A-Za-z0-9_-]+$/', $type) === 1,
+        ));
+    }
+
+    /**
      * `:::type` ... `:::` containers. Opening and closing lines must be paragraphs of their own
      * (blank lines around them). Always balanced: unclosed containers are closed at the end, a
      * stray `:::` is left alone.
      */
     private function resolveContainers(string $html): string
     {
-        $types = array_values(array_filter(
-            $this->callouts,
-            static fn (string $type): bool => preg_match('/^[A-Za-z0-9_-]+$/', $type) === 1,
-        ));
+        $types = self::validCallouts($this->callouts);
 
         if ($types === []) {
             return $html;
         }
 
-        $typePattern = '/^:::(?:('.implode('|', array_map(static fn (string $t): string => preg_quote($t, '/'), $types)).'))?$/';
+        $typePattern = '/^:::[ \t]*(?:('.implode('|', array_map(static fn (string $t): string => preg_quote($t, '/'), $types)).'))?$/';
         $parts = preg_split('/(<[^>]*>)/', $html, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [];
         $open = 0;
         $depth = 0;

@@ -19,6 +19,8 @@ use IntrAgile\Manual\Rendering\ManualRenderer;
  * @phpstan-type Neighbour array{slug: string, title: string}
  * @phpstan-type Heading array{anchor: string, text: string, level: int}
  * @phpstan-type Chapter array{slug: string, section: string, number: string, title: string, summary: string, html: string, headings: list<Heading>, prev: Neighbour|null, next: Neighbour|null, position: int, total: int, readingMinutes: int, locale: string, fallback: bool}
+ *
+ * @internal
  */
 final class ManualRepository
 {
@@ -27,6 +29,9 @@ final class ManualRepository
 
     /** Generation read from the cache once per instance; null until first needed. */
     private ?int $generation = null;
+
+    /** Content fingerprint, computed once per instance. */
+    private ?string $fingerprint = null;
 
     public function __construct(
         private readonly ContentTree $tree,
@@ -98,11 +103,8 @@ final class ManualRepository
             $file = $this->tree->path().'/'.$candidate.'/'.$slug.'.md';
 
             if (is_file($file)) {
-                $contents = file_get_contents($file);
-
-                if ($contents !== false) {
-                    return ['markdown' => $contents, 'locale' => $candidate];
-                }
+                // An unreadable file fails loudly (the warning becomes an exception).
+                return ['markdown' => (string) file_get_contents($file), 'locale' => $candidate];
             }
         }
 
@@ -176,12 +178,17 @@ final class ManualRepository
      */
     public function fingerprint(): string
     {
+        return $this->fingerprint ??= $this->computeFingerprint();
+    }
+
+    private function computeFingerprint(): string
+    {
         $root = $this->tree->path();
         $entries = [];
 
         if (is_dir($root)) {
             $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+                new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS | \FilesystemIterator::FOLLOW_SYMLINKS),
             );
 
             foreach ($iterator as $file) {
@@ -209,10 +216,10 @@ final class ManualRepository
     {
         $tree = [];
 
-        foreach ($this->tree->sections($locale) as $section) {
+        foreach ($this->tree->sections($locale) as $sectionIndex => $section) {
             $chapters = [];
 
-            foreach ($section['chapters'] as $chapter) {
+            foreach ($section['chapters'] as $chapterIndex => $chapter) {
                 $slug = $section['id'].'/'.$chapter;
                 $source = $this->markdown($slug, $locale);
 
@@ -222,7 +229,7 @@ final class ManualRepository
 
                 $chapters[] = [
                     'slug' => $slug,
-                    'number' => $this->tree->number($slug, $locale),
+                    'number' => ($sectionIndex + 1).'.'.($chapterIndex + 1),
                     'title' => $this->renderer->title($source['markdown']),
                     'summary' => $this->renderer->summary($source['markdown']),
                 ];

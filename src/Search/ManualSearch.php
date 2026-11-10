@@ -19,6 +19,8 @@ use IntrAgile\Manual\Support\Ascii;
  *
  * @phpstan-type Document array{slug: string, title: string, headings: string, summary: string, body: string, originalTitle: string, originalBody: string}
  * @phpstan-type SearchHit array{slug: string, section: string, title: string, snippet: string, score: int}
+ *
+ * @internal
  */
 final class ManualSearch
 {

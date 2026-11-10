@@ -21,7 +21,8 @@ Laravel cache store you configure.
 - **Search.** Search runs on the server; the full manual content is never sent to the client,
   only matching chapters with an excerpt.
 - **Access.** The API is private by default (`authenticated`). The package does not authenticate
-  users itself: it checks the user your application's guards have already resolved.
+  users itself: it checks the user your application's guards have already resolved. See the
+  access section of the README, in particular the note on `routes.middleware`.
 - **Content.** A manual served with `access=public` is public. Do not put internal details in
   a file you intend to expose.
 

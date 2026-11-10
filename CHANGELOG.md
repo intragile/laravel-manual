@@ -8,6 +8,8 @@ All notable changes are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-10
+
 ### Fixed
 
 - Plain text for search and summaries keeps a hyphen inside a word or number, so "API-ját",
@@ -66,7 +68,8 @@ All notable changes are recorded here. The format follows
   Exits non-zero on any error, for CI.
 - `manual:clear` command.
 
-[Unreleased]: https://github.com/intragile/laravel-manual/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/intragile/laravel-manual/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/intragile/laravel-manual/releases/tag/v1.0.2
 [1.0.1]: https://github.com/intragile/laravel-manual/releases/tag/v1.0.1
 [1.0.0]: https://github.com/intragile/laravel-manual/releases/tag/v1.0.0
 

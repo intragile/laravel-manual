@@ -319,6 +319,44 @@ final class ManualSearchTest extends TestCase
         }
     }
 
+    public function test_snippet_starts_and_ends_on_whole_words_without_the_title(): void
+    {
+        $dir = sys_get_temp_dir().'/manual-search-words-'.bin2hex(random_bytes(4));
+        mkdir($dir.'/hu/g', 0777, true);
+        file_put_contents($dir.'/_meta.php', "<?php return ['g' => ['icon' => 'x', 'order' => 1, 'chapters' => ['a']]];");
+        $words = 'A monitor rendszeresen ellenőrzi a beállított végpontot, és létrehoz egy eseményt, ha valami '
+            .'nem működik megfelelően. Az értesítések csatornánként külön beállíthatók; a figyelmeztetések '
+            .'pedig összesítve érkeznek meg. ';
+        $body = str_repeat($words, 2).'Itt van a zebracsík szó. '.str_repeat($words, 2);
+        file_put_contents($dir.'/hu/g/a.md', "# Zsiráfkert\n\n$body\n\n## Részletek\n\nTovábbi szöveg.\n");
+
+        try {
+            config(['manual.locales' => ['hu'], 'manual.source_locale' => 'hu']);
+            $this->useContentKeepingConfig($dir);
+
+            $tokens = preg_split('/\s+/', trim(str_replace('…', ' ', $body)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+            foreach (['zebracsik', 'esemenyt', 'ertesitesek'] as $query) {
+                $hit = $this->search()->search($query, 'hu')[0];
+                $snippet = $hit['snippet'];
+
+                $this->assertStringStartsWith('…', $snippet, $query);
+                $this->assertStringEndsWith('…', $snippet, $query);
+                $this->assertStringNotContainsString('Zsiráfkert', $snippet, $query);
+
+                $core = trim(str_replace('…', ' ', $snippet));
+                foreach (preg_split('/\s+/', $core, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $word) {
+                    $this->assertContains($word, $tokens, $query.': "'.$word.'" is a cut word in '.$snippet);
+                }
+            }
+
+            // The title is not in the snippet body, but title words still find the chapter.
+            $this->assertSame(['g/a'], $this->slugs($this->search()->search('zsirafkert', 'hu')));
+        } finally {
+            exec('rm -rf '.escapeshellarg($dir));
+        }
+    }
+
     public function test_provider_registers_a_scoped_instance(): void
     {
         $this->assertSame(app(ManualSearch::class), app(ManualSearch::class));

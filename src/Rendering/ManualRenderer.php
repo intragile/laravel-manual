@@ -88,7 +88,11 @@ final class ManualRenderer
     {
         $body = preg_replace('/^\#\s+.+$/m', '', $markdown, 1) ?? $markdown;
         // Fenced code blocks (an unclosed fence runs to the end) never make a summary.
-        $body = preg_replace('/^[ ]{0,3}(`{3,}|~{3,})[^\n]*\n.*?(?:^[ ]{0,3}\1[`~]*[ \t]*$|\z)/ms', '', $body) ?? $body;
+        $lines = preg_split('/\R/', $body) ?: [];
+        foreach (self::fencedLines($lines) as $i) {
+            $lines[$i] = '';
+        }
+        $body = implode("\n", $lines);
 
         foreach (preg_split('/\R{2,}/', trim($body)) ?: [] as $block) {
             $block = trim($block);
@@ -125,14 +129,66 @@ final class ManualRenderer
 
     /**
      * Tag-free, markup-free text for search and excerpts.
+     *
+     * The title (the first `# ` heading, as title() reads it) is left out: it is served on its own.
+     * A heading without terminal punctuation (`.`, `!`, `?`, `:`) gets a `.`, so it does not run
+     * into the following sentence.
      */
     public function plainText(string $markdown): string
     {
-        $text = strip_tags($this->stripMarkdown($markdown));
+        $text = preg_replace('/^\#\s+.+$/m', '', $markdown, 1) ?? $markdown;
+        $text = strip_tags($this->stripMarkdown($text));
+        $text = preg_replace_callback(
+            '/^[ ]{0,3}#{1,6}(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/m',
+            static function (array $m): string {
+                $heading = trim($m[1] ?? '');
+
+                return $heading === '' || preg_match('/[.!?:]$/', $heading) === 1 ? $heading : $heading.'.';
+            },
+            $text,
+        ) ?? $text;
         $text = preg_replace('/^:::.*$/m', '', $text) ?? $text;
         $text = preg_replace('/[#>*_`|-]+/', ' ', $text) ?? $text;
 
         return trim(preg_replace('/\s+/', ' ', $text) ?? '');
+    }
+
+    /**
+     * Indexes of the lines that belong to a fenced code block, fence lines included, the way
+     * CommonMark reads them: an opener of 3+ backticks or tildes indented at most 3 spaces (a
+     * backtick opener's info string must not contain a backtick), closed only by a run of the
+     * same character at least as long, indented at most 3 spaces and followed by nothing but
+     * spaces or tabs. An unclosed fence runs to the end.
+     *
+     * @param  list<string>  $lines
+     * @return list<int>
+     *
+     * @internal
+     */
+    public static function fencedLines(array $lines): array
+    {
+        $fenced = [];
+        $close = null;
+
+        foreach ($lines as $i => $line) {
+            if ($close === null) {
+                if (preg_match('/^ {0,3}(`{3,}|~{3,})(.*)$/', $line, $m) === 1
+                    && ! ($m[1][0] === '`' && str_contains($m[2], '`'))) {
+                    $close = '/^ {0,3}'.preg_quote($m[1][0], '/').'{'.strlen($m[1]).',}[ \t]*$/';
+                    $fenced[] = $i;
+                }
+
+                continue;
+            }
+
+            $fenced[] = $i;
+
+            if (preg_match($close, $line) === 1) {
+                $close = null;
+            }
+        }
+
+        return $fenced;
     }
 
     /**

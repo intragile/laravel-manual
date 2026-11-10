@@ -713,27 +713,15 @@ final class ManualValidator
     private function linesOutsideFences(string $markdown): array
     {
         $lines = preg_split('/\R/', $markdown) ?: [];
-        $fence = null;
+        // Shared with ManualRenderer::summary(), so both agree on where a fence ends.
+        $fenced = array_flip(ManualRenderer::fencedLines($lines));
+        $result = [];
 
         foreach ($lines as $i => $line) {
-            if ($fence === null) {
-                if (preg_match('/^ {0,3}(`{3,}|~{3,})(.*)$/', $line, $m) === 1
-                    && ! ($m[1][0] === '`' && str_contains($m[2], '`'))) {
-                    $fence = '/^ {0,3}'.preg_quote($m[1][0], '/').'{'.strlen($m[1]).',}\s*$/';
-                    $lines[$i] = self::CODE_LINE;
-                }
-
-                continue;
-            }
-
-            $lines[$i] = self::CODE_LINE;
-
-            if (preg_match($fence, $line) === 1) {
-                $fence = null;
-            }
+            $result[] = isset($fenced[$i]) ? self::CODE_LINE : $line;
         }
 
-        return $lines;
+        return $result;
     }
 
     /**

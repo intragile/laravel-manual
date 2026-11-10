@@ -25,7 +25,7 @@ use IntrAgile\Manual\Rendering\ManualRenderer;
 final class ManualRepository
 {
     /** Bump when the shape of cached values changes. */
-    public const CACHE_VERSION = 1;
+    public const CACHE_VERSION = 2;
 
     /** Generation read from the cache once per instance; null until first needed. */
     private ?int $generation = null;
@@ -187,9 +187,25 @@ final class ManualRepository
         $entries = [];
 
         if (is_dir($root)) {
-            $iterator = new \RecursiveIteratorIterator(
+            // Symlinks are followed, but never into a directory already visited: a link to the
+            // root or an ancestor would otherwise recurse until the path or memory runs out.
+            $visited = [(string) realpath($root) => true];
+            $iterator = new \RecursiveIteratorIterator(new \RecursiveCallbackFilterIterator(
                 new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS | \FilesystemIterator::FOLLOW_SYMLINKS),
-            );
+                static function (\SplFileInfo $file) use (&$visited): bool {
+                    if (! $file->isDir()) {
+                        return true;
+                    }
+
+                    $real = $file->getRealPath();
+
+                    if ($real === false || isset($visited[$real])) {
+                        return false;
+                    }
+
+                    return $visited[$real] = true;
+                },
+            ));
 
             foreach ($iterator as $file) {
                 if (! $file instanceof \SplFileInfo || ! $file->isFile()) {

@@ -191,6 +191,31 @@ final class ManualRendererTest extends TestCase
         $this->assertSame('After the list.', $r->summary("# T\n\n* item\n- item\n+ item\n\n---\n\n***\n\nAfter the list.\n"));
     }
 
+    public function test_plaintext_drops_the_title_and_ends_headings_as_sentences(): void
+    {
+        $md = "# Monitorok\n\nA monitor rendszeresen fut.\n\n## A monitorlista\n\nA Monitorok képernyő.\n\n"
+            ."## Mi ez?\n\nIgen.\n\n### Fontos: ##\n\nVége\n";
+
+        $this->assertSame(
+            'A monitor rendszeresen fut. A monitorlista. A Monitorok képernyő. Mi ez? Igen. Fontos: Vége',
+            $this->renderer()->plainText($md),
+        );
+    }
+
+    public function test_summary_closes_a_fence_only_like_commonmark(): void
+    {
+        $r = $this->renderer();
+
+        // A closing fence uses the opener's character only: "```~~~" does not close "```".
+        $this->assertSame('Real.', $r->summary("# T\n\n```\ncode\n```~~~\n\nInside the fence.\n\n```\n\nReal.\n"));
+        // A shorter run does not close a longer opener.
+        $this->assertSame('Real.', $r->summary("# T\n\n````\ncode\n```\n\nInside.\n\n````\n\nReal.\n"));
+        // An indented closer with trailing spaces does close it.
+        $this->assertSame('After.', $r->summary("# T\n\n~~~ php\ncode\n   ~~~~  \n\nAfter.\n"));
+        // A backtick opener whose info string has a backtick is no fence: the text is a paragraph.
+        $this->assertSame('a b and more', $r->summary("# T\n\n```a b``` and more\n\nNext.\n"));
+    }
+
     private function assertBalanced(string $html): void
     {
         preg_match_all('/<(\/?)(div|blockquote|ul|ol|li)\b[^>]*>/', $html, $tags, PREG_SET_ORDER);

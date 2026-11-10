@@ -32,6 +32,9 @@ final class ManualSearch
 
     private const SNIPPET_FALLBACK = 160;
 
+    /** The most characters a window edge moves to land on a word boundary. */
+    private const SNIPPET_MAX_SNAP = 40;
+
     /**
      * @param  array<string, Stemmer>  $stemmers  locale => stemmer; a missing locale means no stemming
      */
@@ -222,13 +225,64 @@ final class ManualSearch
         $length = count($chars);
 
         if ($position === null) {
-            return trim(mb_substr($original, 0, self::SNIPPET_FALLBACK)).($length > self::SNIPPET_FALLBACK ? '…' : '');
+            $end = self::snapEnd($chars, min($length, self::SNIPPET_FALLBACK), 0);
+
+            return trim(implode('', array_slice($chars, 0, $end))).($end < $length ? '…' : '');
         }
 
-        $start = max(0, $charAt[$position] - self::SNIPPET_BEFORE);
-        $snippet = trim(mb_substr($original, $start, self::SNIPPET_LENGTH));
+        $hit = $charAt[$position];
+        $start = self::snapStart($chars, max(0, $hit - self::SNIPPET_BEFORE), $hit);
+        $end = self::snapEnd($chars, min($length, $start + self::SNIPPET_LENGTH), $hit);
+        $snippet = trim(implode('', array_slice($chars, $start, $end - $start)));
 
-        return ($start > 0 ? '…' : '').$snippet.($start + self::SNIPPET_LENGTH < $length ? '…' : '');
+        return ($start > 0 ? '…' : '').$snippet.($end < $length ? '…' : '');
+    }
+
+    /**
+     * A window start that cuts a word moves forward to just after the next whitespace, unless
+     * that would pass the hit or drop more than SNIPPET_MAX_SNAP characters (an overlong
+     * "word" such as a URL is cut instead).
+     *
+     * @param  list<string>  $chars
+     */
+    private static function snapStart(array $chars, int $start, int $hit): int
+    {
+        if (! isset($chars[$start - 1], $chars[$start]) || self::isSpace($chars[$start - 1]) || self::isSpace($chars[$start])) {
+            return $start;
+        }
+
+        for ($i = $start; $i < $hit && $i - $start < self::SNIPPET_MAX_SNAP; $i++) {
+            if (self::isSpace($chars[$i])) {
+                return $i + 1;
+            }
+        }
+
+        return $start;
+    }
+
+    /**
+     * A window end that cuts a word moves back to the last whitespace, under the same limits.
+     *
+     * @param  list<string>  $chars
+     */
+    private static function snapEnd(array $chars, int $end, int $hit): int
+    {
+        if (! isset($chars[$end], $chars[$end - 1]) || self::isSpace($chars[$end - 1]) || self::isSpace($chars[$end])) {
+            return $end;
+        }
+
+        for ($i = $end - 1; $i > $hit && $end - $i <= self::SNIPPET_MAX_SNAP; $i--) {
+            if (self::isSpace($chars[$i])) {
+                return $i;
+            }
+        }
+
+        return $end;
+    }
+
+    private static function isSpace(string $char): bool
+    {
+        return preg_match('/^\s$/u', $char) === 1;
     }
 
     /**

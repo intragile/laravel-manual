@@ -84,7 +84,8 @@ final class ManualRepositoryTest extends TestCase
                 continue;
             }
 
-            is_dir($dir.'/'.$entry) ? $this->removeDir($dir.'/'.$entry) : unlink($dir.'/'.$entry);
+            $path = $dir.'/'.$entry;
+            ! is_link($path) && is_dir($path) ? $this->removeDir($path) : unlink($path);
         }
 
         rmdir($dir);
@@ -277,6 +278,25 @@ final class ManualRepositoryTest extends TestCase
         file_put_contents($dir.'/hu/general/setup.md', "# Beállítás\n\nMás.\n");
         app()->forgetInstance(ManualRepository::class);
         $this->assertNotSame($before, $this->repo()->fingerprint());
+    }
+
+    public function test_fingerprint_survives_a_symlink_to_an_ancestor_directory(): void
+    {
+        $dir = $this->copyFixture();
+
+        if (! @symlink($dir, $dir.'/hu/loop') || ! @symlink('..', $dir.'/en/up')) {
+            $this->markTestSkipped('Symbolic links cannot be created here.');
+        }
+
+        $this->useContent($dir);
+        $before = $this->repo()->fingerprint();
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{40}$/', $before);
+
+        file_put_contents($dir.'/hu/general/setup.md', "# Beállítás\n\nMás, hosszabb szöveg.\n");
+        app()->forgetInstance(ManualRepository::class);
+        $this->assertNotSame($before, $this->repo()->fingerprint());
+
+        $this->assertSame('Bevezetés', $this->repo()->tree('hu')[0]['chapters'][0]['title']);
     }
 
     public function test_cache_survives_serializable_classes_false_on_file_store(): void

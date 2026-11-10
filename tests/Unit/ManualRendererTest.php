@@ -182,6 +182,15 @@ final class ManualRendererTest extends TestCase
         $this->assertStringContainsString('Body text', $r->plainText($md));
     }
 
+    public function test_summary_accepts_a_paragraph_that_starts_with_emphasis(): void
+    {
+        $r = $this->renderer();
+
+        $this->assertSame('Bold start of the paragraph.', $r->summary("# T\n\n**Bold** start of the paragraph.\n"));
+        $this->assertSame('Italic start.', $r->summary("# T\n\n*Italic* start.\n"));
+        $this->assertSame('After the list.', $r->summary("# T\n\n* item\n- item\n+ item\n\n---\n\n***\n\nAfter the list.\n"));
+    }
+
     private function assertBalanced(string $html): void
     {
         preg_match_all('/<(\/?)(div|blockquote|ul|ol|li)\b[^>]*>/', $html, $tags, PREG_SET_ORDER);

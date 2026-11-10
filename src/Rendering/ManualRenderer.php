@@ -93,7 +93,7 @@ final class ManualRenderer
         foreach (preg_split('/\R{2,}/', trim($body)) ?: [] as $block) {
             $block = trim($block);
 
-            if ($block !== '' && preg_match('/^(#|[-*>|]|!\[|\d+\.|:::)/', $block) !== 1) {
+            if ($block !== '' && preg_match('/^(#|[-*+](?:[ \t]|$)|(?:[-*_][ \t]*){3,}$|[>|]|!\[|\d+[.)]|:::)/', $block) !== 1) {
                 return trim(preg_replace('/\s+/', ' ', strip_tags($this->stripMarkdown($block))) ?? '');
             }
         }

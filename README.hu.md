@@ -276,14 +276,14 @@ Ha a Sanctum-guardod nem az alapértelmezett, biztonságosabb a gate vagy az egy
 
 A körülvevő csoport middleware-jei (például az `auth:sanctum`) a csomag saját middleware-jei
 **előtt** futnak, így az `Accept: application/json`-t kényszerítő előtt is. Az `Accept` fejléc
-nélkül érkező nem bejelentkezett látogatót ezért az alkalmazásod saját, hitelesítetlen kérésekre vonatkozó kezelése
-utasítja el, amely alapból a bejelentkező route-ra irányít át. Állítsd be, hogy az alkalmazásod az
-API-ra JSON-t adjon, például a `bootstrap/app.php`-ban:
+nélkül érkező nem bejelentkezett látogatót ezért az alkalmazásod saját, hitelesítetlen kérésekre
+vonatkozó kezelése utasítja el, amely alapból a bejelentkező route-ra irányít át. Állítsd be, hogy
+az alkalmazásod az API-ra JSON-t adjon, például a `bootstrap/app.php`-ban:
 `$exceptions->shouldRenderJsonWhen(fn ($request) => $request->is('api/*'))`.
 
-A gate a nem bejelentkezett látogatóra is lefut, de a Laravel csak akkor hívja meg nála a gate callbackjét, ha annak
-első, user paramétere nullable, vagy `null` az alapértéke. Ha a gate-en a nem bejelentkezett látogatót is át akarod
-engedni, így deklaráld:
+A gate a nem bejelentkezett látogatóra is lefut, de a Laravel csak akkor hívja meg nála a gate
+callbackjét, ha annak első, user paramétere nullable, vagy `null` az alapértéke. Ha a gate-en a nem
+bejelentkezett látogatót is át akarod engedni, így deklaráld:
 
 ```php
 use App\Models\User;
@@ -291,8 +291,8 @@ use App\Models\User;
 Gate::define('view-manual', fn (?User $user): bool => $user === null || $user->can_see_help);
 ```
 
-Az a callback, amely kötelezően `User`-t vár, vagy egyáltalán nincs paramétere, minden nem bejelentkezett látogatót
-401-gyel utasít el.
+Az a callback, amely kötelezően `User`-t vár, vagy egyáltalán nincs paramétere, minden nem
+bejelentkezett látogatót 401-gyel utasít el.
 
 ## API
 
@@ -362,11 +362,11 @@ Minden végpont elfogadja a `?locale=` paramétert is (legfeljebb 20 karakteres 
   `position`, `total`, `prev` és `next` csak a nyelvhez ténylegesen létező fejezeteket számolja.
 - A fejezet `locale` mezője a ténylegesen beolvasott fájl nyelve, a `fallback` pedig akkor `true`,
   ha ez eltér a kért nyelvtől. A fejezetválasznak nincs legfelső `locale`-ja.
-- A fa és a keresés legfelső `locale` mezője a kérésből meghatározott nyelv: a kért nyelv,
-  ha be van állítva, különben a `fallback` első beállított nyelve, végül a `source_locale`. A `fallback` akkor `true`, ha a kérést a saját
-  nyelvén nem lehetett teljesíteni. Ez **nyelvszintű**: ha egyetlen fejezet hiányzik egy beállított
-  fordításból, és a visszaesésből jön, az nem kapcsolja be a fa vagy a keresés `fallback`-jét. Ahhoz
-  a fejezet saját `fallback` mezőjét olvasd.
+- A fa és a keresés legfelső `locale` mezője a kérésből meghatározott nyelv: a kért nyelv, ha be van
+  állítva, különben a `fallback` első beállított nyelve, végül a `source_locale`. A `fallback` akkor
+  `true`, ha a kérést a saját nyelvén nem lehetett teljesíteni. Ez **nyelvszintű**: ha egyetlen
+  fejezet hiányzik egy beállított fordításból, és a visszaesésből jön, az nem kapcsolja be a fa vagy
+  a keresés `fallback`-jét. Ahhoz a fejezet saját `fallback` mezőjét olvasd.
 - A `html` megtisztított (lásd Biztonság), és `v-html`-lel való beillesztésre szánt.
 - Minden más szöveges mező (`title`, `summary`, `headings[].text`, a szakaszok címe, a `prev` és a
   `next` címe, valamint a keresési `snippet`) **egyszerű szöveg**: szövegként kell megjeleníteni,
@@ -394,14 +394,14 @@ hogy a saját nyelve nem elérhető. A hibás alakú érték (`?locale=../x`) fi
 ### Visszaesési lánc
 
 A kért nyelvhez a fejezetet ebben a sorrendben keresi: a kért nyelv, aztán a `fallback`-ben szereplő
-nyelvek (csak a beállítottak), végül a `source_locale`. Az első megtalált fájl jön. A nem beállított kért nyelvet (nincs a
-`locales`-ben, és nem a `source_locale`) kihagyja, és soha nem jut el a fájlrendszerig: a lánc ilyenkor
-csak a beállított `fallback` nyelvekből, majd a `source_locale`-ból áll. Ha a `locales` `['hu', 'en']`,
-a `source_locale` `hu`, a `fallback` pedig `['en']`, a `de` kérés `en` nyelven jön `fallback: true`-val,
-az olyan fejezet pedig, amelynek nincs `en` fájlja, `hu` nyelven. Üres (`[]`) `fallback` esetén a
-`source_locale`-ból jön. A config
-`fallback` kulcsa a **lánc** (mely nyelveket próbálja); a válasz `fallback` jelzője csak azt mondja
-meg, hogy a kiszolgált nyelv nem a kért nyelv.
+nyelvek (csak a beállítottak), végül a `source_locale`. Az első megtalált fájl jön. A nem beállított
+kért nyelvet (nincs a `locales`-ben, és nem a `source_locale`) kihagyja, és soha nem jut el a
+fájlrendszerig: a lánc ilyenkor csak a beállított `fallback` nyelvekből, majd a `source_locale`-ból
+áll. Ha a `locales` `['hu', 'en']`, a `source_locale` `hu`, a `fallback` pedig `['en']`, a `de`
+kérés `en` nyelven jön `fallback: true`-val, az olyan fejezet pedig, amelynek nincs `en` fájlja,
+`hu` nyelven. Üres (`[]`) `fallback` esetén a `source_locale`-ból jön. A config `fallback` kulcsa a
+**lánc** (mely nyelveket próbálja); a válasz `fallback` jelzője csak azt mondja meg, hogy a
+kiszolgált nyelv nem a kért nyelv.
 
 ## A kézikönyv ellenőrzése
 
@@ -561,7 +561,7 @@ visszaállítását tiltó store-okkal (`cache.serializable_classes = false`) is
 ezekből áll össze:
 
 - a `cache.prefix`;
-- `CACHE_VERSION`, a csomag egy konstansa, amelyet a tárolt alak változásakor emelnek;
+- `CACHE_VERSION`, a csomag egy konstansa, amelyet a tárolt alak vagy tartalom változásakor emelnek;
 - a cache **generáció**;
 - a bejegyzés fajtája (`tree`, `chapter` vagy `search`) és a tényleges nyelv;
 - a kimenetet befolyásoló config hash-e (`locales`, `source_locale`, `fallback`, `callouts`, a
@@ -573,7 +573,8 @@ ezekből áll össze:
 Ha egy deploy módosít egy fájlt vagy a configot, a változás anélkül jelenik meg, hogy bármit
 törölni kellene. Minden bejegyzés egy nap után lejár, hogy a régi kulcsok ne halmozódjanak fel.
 
-A hiányzó tartalmi útvonal nem hiba, hanem üres kézikönyvet eredményez. A `php artisan manual:check` parancsot ezért a telepített buildre vagy image-re is érdemes lefuttatni, nem csak a repositoryban.
+A hiányzó tartalmi útvonal nem hiba, hanem üres kézikönyvet eredményez. A `php artisan manual:check`
+parancsot ezért a telepített buildre vagy image-re is érdemes lefuttatni, nem csak a repositoryban.
 
 A `php artisan manual:clear` növeli a generációt: minden régi bejegyzés egyszerre elérhetetlenné
 válik, és magától lejár. **Bármilyen** cache store-on működik (nincs címke, nincs kulcslistázás). A

@@ -24,7 +24,7 @@ use IntrAgile\Manual\Rendering\ManualRenderer;
  */
 final class ManualRepository
 {
-    /** Bump when the shape of cached values changes. */
+    /** Bump when the shape or the content of cached values changes (2: snippet text in 1.0.1). */
     public const CACHE_VERSION = 2;
 
     /** One day, in seconds. */

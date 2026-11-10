@@ -543,7 +543,7 @@ store. Entries hold only arrays and strings, so they work with stores that refus
 objects (`cache.serializable_classes = false`). A key is built from:
 
 - `cache.prefix`;
-- `CACHE_VERSION`, a constant of the package, bumped when the stored shape changes;
+- `CACHE_VERSION`, a constant of the package, bumped when the stored shape or content changes;
 - the cache **generation**;
 - the kind of entry (`tree`, `chapter` or `search`) and the effective locale;
 - a hash of the config that affects output (`locales`, `source_locale`, `fallback`, `callouts`, the
@@ -552,14 +552,17 @@ objects (`cache.serializable_classes = false`). A key is built from:
   the manual directory;
 - the chapter slug, for chapter entries.
 
-A deploy that changes a file or the config therefore shows up without clearing anything. All entries expire after one day, so old keys do not pile up.
+A deploy that changes a file or the config therefore shows up without clearing anything. All entries
+expire after one day, so old keys do not pile up.
 
-An absent content path yields an empty manual, not an error. Run `php artisan manual:check` against the deployed build or image too, not only in the repository, so a missing content directory is noticed.
+An absent content path yields an empty manual, not an error. Run `php artisan manual:check` against
+the deployed build or image too, not only in the repository, so a missing content directory is
+noticed.
 
 `php artisan manual:clear` bumps the generation: every old entry becomes unreachable at once and
-simply expires. It works on **any** cache store (no tags, no key listing). Running workers pick
-the new generation up on their next request, because the repository, search and manager bindings are **scoped**: a
-fresh instance per request or job, so Octane and queue workers are safe.
+simply expires. It works on **any** cache store (no tags, no key listing). Running workers pick the
+new generation up on their next request, because the repository, search and manager bindings are
+**scoped**: a fresh instance per request or job, so Octane and queue workers are safe.
 
 Limitation: an edit made within the same second as the previous one that leaves the file size
 exactly the same is not detected. Run `manual:clear` in that case. In practice it only matters

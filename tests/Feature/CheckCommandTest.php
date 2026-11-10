@@ -369,6 +369,60 @@ final class CheckCommandTest extends TestCase
         $this->assertStringContainsString('Manual OK', $output);
     }
 
+    public function test_fix1_fixture_reports_exactly_these_errors(): void
+    {
+        $this->useFixture('fix1');
+
+        $this->assertSame([
+            '[en] general/list: block structure differs from hu (2 blocks instead of 4); first difference at block 3: hu has numbered item, en has no more blocks',
+            '[en] general/nested: callout markers must start at the beginning of the line (not inside a list or quote)',
+            '[en] general/setext: setext H1 heading ("===" underline) is not supported (write "# Title")',
+            '[hu] general/nested: callout markers must start at the beginning of the line (not inside a list or quote)',
+            '[hu] general/setext: setext H1 heading ("===" underline) is not supported (write "# Title")',
+        ], $this->errors());
+    }
+
+    public function test_a_wrapped_number_is_paragraph_text_in_the_parity_check(): void
+    {
+        // hu: "...amely\n2026. november 10-én jelent meg." against en on one line.
+        $this->useFixture('fix1');
+
+        $this->assertSame([], $this->errorsFor('[en] general/dates'));
+    }
+
+    public function test_a_list_starting_at_1_interrupts_a_paragraph_in_the_parity_check(): void
+    {
+        $this->useFixture('fix1');
+
+        $this->assertSame(
+            ['block structure differs from hu (2 blocks instead of 4); first difference at block 3: hu has numbered item, en has no more blocks'],
+            $this->errorsFor('[en] general/list'),
+        );
+    }
+
+    public function test_callout_markers_inside_a_list_or_quote_are_reported(): void
+    {
+        $this->useFixture('fix1');
+
+        $this->assertSame(
+            ['callout markers must start at the beginning of the line (not inside a list or quote)'],
+            $this->errorsFor('[hu] general/nested'),
+        );
+    }
+
+    public function test_setext_headings(): void
+    {
+        $this->useFixture('fix1');
+
+        // A setext H1 is named as such, not as a missing title; a setext H2 is fine.
+        $this->assertSame(
+            ['setext H1 heading ("===" underline) is not supported (write "# Title")'],
+            $this->errorsFor('[hu] general/setext'),
+        );
+        $this->assertSame([], $this->errorsFor('[hu] general/setext-h2'));
+        $this->assertSame([], $this->errorsFor('[en] general/setext-h2'));
+    }
+
     private function useCachedFixture(string $store): void
     {
         $this->useFixture('valid');

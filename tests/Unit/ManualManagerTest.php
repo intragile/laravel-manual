@@ -23,7 +23,7 @@ final class ManualManagerTest extends TestCase
         ]);
     }
 
-    public function test_manager_is_the_facade_root_singleton(): void
+    public function test_manager_is_the_scoped_facade_root(): void
     {
         $this->assertSame(app(ManualManager::class), app(ManualManager::class));
         $this->assertSame(app(ManualManager::class), Manual::getFacadeRoot());

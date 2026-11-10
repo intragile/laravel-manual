@@ -370,16 +370,24 @@ final class ManualValidator
         // --- title, summary, heading levels ---
 
         $h1 = 0;
+        $setext = false;
         $deep = false;
 
-        foreach ($lines as $line) {
+        foreach ($lines as $i => $line) {
             if (preg_match('/^ {0,3}(#{1,6})(?:[ \t]|$)/', $line, $m) === 1) {
                 $h1 += strlen($m[1]) === 1 ? 1 : 0;
                 $deep = $deep || strlen($m[1]) >= 4;
+            } elseif (preg_match('/^ {0,3}=+[ \t]*$/', $line) === 1 && $this->isParagraphText($lines[$i - 1] ?? '')) {
+                // Setext H1 (`Title` / `===`). A setext H2 (`---`) is fine: H2 is allowed.
+                $h1++;
+                $setext = true;
             }
         }
 
-        if ($h1 === 0 || trim($this->renderer->title($markdown)) === '') {
+        if ($setext) {
+            // CommonMark renders it as an H1, but title() and summary() only read `# Title`.
+            $errors[] = $where.'setext H1 heading ("===" underline) is not supported (write "# Title")';
+        } elseif ($h1 === 0 || trim($this->renderer->title($markdown)) === '') {
             $errors[] = $where.'missing title (the first "# " heading)';
         }
 
@@ -427,6 +435,19 @@ final class ManualValidator
     }
 
     /**
+     * Whether a line can be the text line of a setext heading: non-blank, not code and not the
+     * start of another block.
+     */
+    private function isParagraphText(string $line): bool
+    {
+        $trimmed = trim($line);
+
+        return $trimmed !== ''
+            && $trimmed !== self::CODE_LINE
+            && preg_match('/^(#{1,6}(\s|$)|:::|\||>|[-*+]\s|\d+[.)]\s|=+$)/', $trimmed) !== 1;
+    }
+
+    /**
      * @param  list<string>  $errors
      * @param  list<string>  $lines
      */
@@ -435,9 +456,18 @@ final class ManualValidator
         $open = 0;
         $unbalanced = false;
         $needsBlank = false;
+        $nested = false;
 
         foreach ($lines as $i => $line) {
             $trimmed = trim($line);
+
+            // The renderer only resolves markers at the top level: an indented marker (list item)
+            // or a quoted one stays literal text on the page.
+            if (preg_match('/^(?:[ \t]+|[ \t]*>[ \t>]*):::/', $line) === 1) {
+                $nested = true;
+
+                continue;
+            }
 
             if (! str_starts_with($trimmed, ':::')) {
                 continue;
@@ -472,6 +502,10 @@ final class ManualValidator
 
         if ($needsBlank) {
             $errors[] = $where.'":::" markers need a blank line before and after';
+        }
+
+        if ($nested) {
+            $errors[] = $where.'callout markers must start at the beginning of the line (not inside a list or quote)';
         }
     }
 
@@ -622,6 +656,9 @@ final class ManualValidator
             $continues = ! $afterBlank && match ($label) {
                 'code block', 'quote' => $previous === $label,
                 'paragraph' => in_array($previous, ['paragraph', 'quote', 'list item', 'numbered item'], true),
+                // CommonMark: only an ordered list starting at 1 can interrupt a paragraph, so a
+                // wrapped "2026. november ..." line is still paragraph text.
+                'numbered item' => $previous === 'paragraph' && preg_match('/^0*1[.)]\s/', $line) !== 1,
                 default => false,
             };
 

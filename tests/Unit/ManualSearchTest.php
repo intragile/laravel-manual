@@ -308,7 +308,7 @@ final class ManualSearchTest extends TestCase
         }
     }
 
-    public function test_provider_registers_a_singleton(): void
+    public function test_provider_registers_a_scoped_instance(): void
     {
         $this->assertSame(app(ManualSearch::class), app(ManualSearch::class));
     }

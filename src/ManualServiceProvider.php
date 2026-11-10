@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace IntrAgile\Manual;
 
+use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
@@ -25,35 +26,35 @@ final class ManualServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../config/manual.php', 'manual');
 
         $this->app->singleton(ContentTree::class, fn (): ContentTree => new ContentTree(
-            self::stringConfig('manual.path'),
-            self::stringList(config('manual.locales')),
-            self::stringConfig('manual.source_locale', 'en'),
-            self::stringList(config('manual.fallback')),
+            $this->stringConfig('manual.path'),
+            self::stringList($this->config()->get('manual.locales')),
+            $this->stringConfig('manual.source_locale', 'en'),
+            self::stringList($this->config()->get('manual.fallback')),
         ));
 
         $this->app->singleton(ManualRenderer::class, fn (Application $app): ManualRenderer => new ManualRenderer(
-            self::stringList(config('manual.callouts')),
+            self::stringList($this->config()->get('manual.callouts')),
             $this->links($app->make(ContentTree::class)->path()),
         ));
 
         // Scoped, not singleton: the cache generation is read once per instance, and a
         // long-running worker (Octane, queue) must see a `manual:clear` on its next request.
         $this->app->scoped(ManualRepository::class, function (Application $app): ManualRepository {
-            $store = config('manual.cache.store');
+            $store = $this->config()->get('manual.cache.store');
 
             return new ManualRepository(
                 $app->make(ContentTree::class),
                 $app->make(ManualRenderer::class),
                 Cache::store(is_string($store) ? $store : null),
-                self::stringConfig('manual.cache.prefix', 'manual'),
+                $this->stringConfig('manual.cache.prefix', 'manual'),
                 $this->configHash($app->make(ContentTree::class)),
             );
         });
 
         $this->app->scoped(ManualSearch::class, function (Application $app): ManualSearch {
-            $store = config('manual.cache.store');
-            $minLength = config('manual.search.min_term_length', 3);
-            $limit = config('manual.search.limit', 10);
+            $store = $this->config()->get('manual.cache.store');
+            $minLength = $this->config()->get('manual.search.min_term_length', 3);
+            $limit = $this->config()->get('manual.search.limit', 10);
 
             return new ManualSearch(
                 $app->make(ContentTree::class),
@@ -70,17 +71,17 @@ final class ManualServiceProvider extends ServiceProvider
 
         // Built from the current config on every resolve, like the command run it serves.
         $this->app->bind(ManualValidator::class, function (): ManualValidator {
-            $path = self::stringConfig('manual.path');
+            $path = $this->stringConfig('manual.path');
             $links = $this->links($path);
-            $callouts = self::stringList(config('manual.callouts'));
+            $callouts = self::stringList($this->config()->get('manual.callouts'));
 
             return new ManualValidator(
                 $path,
-                self::stringList(config('manual.locales')),
-                self::stringConfig('manual.source_locale', 'en'),
+                self::stringList($this->config()->get('manual.locales')),
+                $this->stringConfig('manual.source_locale', 'en'),
                 $callouts,
                 $links,
-                config('manual.known_routes'),
+                $this->config()->get('manual.known_routes'),
                 new ManualRenderer($callouts, $links),
             );
         });
@@ -90,10 +91,10 @@ final class ManualServiceProvider extends ServiceProvider
     {
         // Defaults mirror config/manual.php: a published config that overrides
         // only part of `routes` replaces the whole array (the merge is shallow).
-        $enabled = filter_var(config('manual.routes.enabled', true), FILTER_VALIDATE_BOOL);
+        $enabled = filter_var($this->config()->get('manual.routes.enabled', true), FILTER_VALIDATE_BOOL);
 
         if ($enabled && ! $this->app->routesAreCached()) {
-            $middleware = config('manual.routes.middleware', ['api']);
+            $middleware = $this->config()->get('manual.routes.middleware', ['api']);
 
             Route::middleware(is_array($middleware) ? $middleware : [])
                 ->group(static fn () => Manual::routes());
@@ -103,7 +104,7 @@ final class ManualServiceProvider extends ServiceProvider
             $this->commands([CheckCommand::class, ClearCommand::class]);
 
             $this->publishes([
-                __DIR__.'/../config/manual.php' => config_path('manual.php'),
+                __DIR__.'/../config/manual.php' => $this->app->configPath('manual.php'),
             ], 'manual-config');
         }
     }
@@ -114,7 +115,7 @@ final class ManualServiceProvider extends ServiceProvider
      */
     private function configHash(ContentTree $tree): string
     {
-        $configured = config('manual.links');
+        $configured = $this->config()->get('manual.links');
         $stat = '';
 
         if (is_string($configured) && $configured !== '' && is_file($configured) && ! str_starts_with($configured, $tree->path().'/')) {
@@ -122,10 +123,10 @@ final class ManualServiceProvider extends ServiceProvider
         }
 
         return sha1((string) json_encode([
-            self::stringList(config('manual.locales')),
-            self::stringConfig('manual.source_locale', 'en'),
-            self::stringList(config('manual.fallback')),
-            self::stringList(config('manual.callouts')),
+            self::stringList($this->config()->get('manual.locales')),
+            $this->stringConfig('manual.source_locale', 'en'),
+            self::stringList($this->config()->get('manual.fallback')),
+            self::stringList($this->config()->get('manual.callouts')),
             $this->links($tree->path()),
             $stat,
         ]));
@@ -139,7 +140,7 @@ final class ManualServiceProvider extends ServiceProvider
      */
     private function stemmers(): array
     {
-        $configured = config('manual.stemmers');
+        $configured = $this->config()->get('manual.stemmers');
         $stemmers = [];
 
         if (! is_array($configured)) {
@@ -160,7 +161,7 @@ final class ManualServiceProvider extends ServiceProvider
      */
     private function links(string $path): array
     {
-        $configured = config('manual.links');
+        $configured = $this->config()->get('manual.links');
 
         if (is_array($configured)) {
             $links = $configured;
@@ -190,9 +191,18 @@ final class ManualServiceProvider extends ServiceProvider
         return $result;
     }
 
-    private static function stringConfig(string $key, string $default = ''): string
+    /**
+     * Resolved on every call, like the config() helper, so a test or a host that swaps the
+     * repository is always seen.
+     */
+    private function config(): Config
     {
-        $value = config($key);
+        return $this->app->make(Config::class);
+    }
+
+    private function stringConfig(string $key, string $default = ''): string
+    {
+        $value = $this->config()->get($key);
 
         return is_string($value) ? $value : $default;
     }

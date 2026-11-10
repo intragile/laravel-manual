@@ -27,6 +27,9 @@ final class ManualRepository
     /** Bump when the shape of cached values changes. */
     public const CACHE_VERSION = 2;
 
+    /** One day, in seconds. */
+    private const CACHE_TTL = 86400;
+
     /** Generation read from the cache once per instance; null until first needed. */
     private ?int $generation = null;
 
@@ -56,7 +59,7 @@ final class ManualRepository
         }
 
         $result = $this->buildTree($effective);
-        $this->cache->put($key, $result, now()->addDay());
+        $this->cache->put($key, $result, self::CACHE_TTL);
 
         return $result;
     }
@@ -85,7 +88,7 @@ final class ManualRepository
             return null;
         }
 
-        $this->cache->put($key, $result, now()->addDay());
+        $this->cache->put($key, $result, self::CACHE_TTL);
 
         return $this->withFallback($result, $locale);
     }

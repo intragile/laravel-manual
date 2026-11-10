@@ -26,6 +26,9 @@ final class ManualSearch
 {
     private const MAX_QUERY_LENGTH = 200;
 
+    /** One day, in seconds; the same TTL as the repository's tree and chapter entries. */
+    private const CACHE_TTL = 86400;
+
     private const SNIPPET_BEFORE = 70;
 
     private const SNIPPET_LENGTH = 220;
@@ -151,7 +154,7 @@ final class ManualSearch
         }
 
         $index = $this->buildIndex($locale);
-        $this->cache->put($key, $index, now()->addDay());
+        $this->cache->put($key, $index, self::CACHE_TTL);
 
         return $index;
     }

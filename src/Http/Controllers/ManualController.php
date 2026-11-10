@@ -13,6 +13,7 @@ use IntrAgile\Manual\Http\Resources\SearchResultResource;
 use IntrAgile\Manual\Http\Resources\SectionResource;
 use IntrAgile\Manual\LocaleResolver;
 use IntrAgile\Manual\ManualManager;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
  * The resolved client locale is passed to the repository, which applies the allowlist and
@@ -72,7 +73,10 @@ final class ManualController extends Controller
         ]);
 
         $chapter = $this->manual->chapter($validated['slug'], $this->locales->resolve($request));
-        abort_if($chapter === null, 404);
+
+        if ($chapter === null) {
+            throw new NotFoundHttpException;
+        }
 
         return new ChapterResource($chapter);
     }

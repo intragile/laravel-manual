@@ -71,7 +71,14 @@ final class LocaleResolver
             return $firstValid;
         }
 
-        return $allowed[$this->normalise(app()->getLocale())] ?? $this->sourceLocale();
+        // Application::getLocale() reads `app.locale`, and setLocale() writes it.
+        $appLocale = $this->config->get('app.locale');
+
+        if (is_string($appLocale) && isset($allowed[$this->normalise($appLocale)])) {
+            return $allowed[$this->normalise($appLocale)];
+        }
+
+        return $this->sourceLocale();
     }
 
     private function normalise(string $tag): string

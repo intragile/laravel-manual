@@ -10,6 +10,8 @@ use Illuminate\Contracts\Auth\Access\Gate;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
  * @internal Not part of the public API; it may change in any release.
@@ -33,7 +35,7 @@ final class EnsureManualAccess
         }
 
         if (! is_string($access) || $access === 'disabled') {
-            abort(404);
+            throw new NotFoundHttpException;
         }
 
         if ($access === 'authenticated') {
@@ -53,6 +55,6 @@ final class EnsureManualAccess
             throw new AuthenticationException;
         }
 
-        abort(403);
+        throw new HttpException(403);
     }
 }

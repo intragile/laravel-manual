@@ -6,6 +6,25 @@ All notable changes are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-11-10
+
+### Fixed
+
+- Search snippets start and end on whole words instead of cutting a word in half, and no longer
+  begin with the chapter title, which every hit already shows separately. A heading without
+  closing punctuation now ends with a period instead of running into the next sentence. The cache
+  version moves to 2, so cached search indexes and chapters are rebuilt once after the upgrade.
+- A symbolic link inside the manual directory that points to the directory itself or one of its
+  ancestors no longer sends the content fingerprint into an endless loop.
+- A chapter summary no longer treats a line such as ```` ```~~~ ```` as the end of a ```` ``` ````
+  code block: a fence closes only with the same character, at least as long as the opening one,
+  exactly as `manual:check` and CommonMark read it.
+- `?locale=` sent empty or blank no longer answers 422 when the application trims strings and
+  converts empty ones to null; the locale is then taken from `Accept-Language` as if it were absent.
+- The package no longer calls the global helpers that only `laravel/framework` defines (`config()`,
+  `config_path()`, `app()`, `abort()`, `abort_if()`, `now()`), so it works with the `illuminate/*`
+  components it requires.
+
 ## [1.0.0] - 2026-11-10
 
 ### Added
@@ -36,6 +55,7 @@ All notable changes are recorded here. The format follows
   Exits non-zero on any error, for CI.
 - `manual:clear` command.
 
+[1.0.1]: https://github.com/intragile/laravel-manual/releases/tag/v1.0.1
 [1.0.0]: https://github.com/intragile/laravel-manual/releases/tag/v1.0.0
 
 ---

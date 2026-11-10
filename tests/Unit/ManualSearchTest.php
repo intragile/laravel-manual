@@ -167,8 +167,19 @@ final class ManualSearchTest extends TestCase
         $this->assertSame('guide/tokens', $this->search()->search('tokenek', 'hu')[0]['slug']);
     }
 
-    public function test_unknown_locale_falls_back_to_source_locale(): void
+    public function test_unknown_locale_falls_back_through_the_fallback_list(): void
     {
+        $this->assertSame('guide/tokens', $this->search()->search('lists', 'de')[0]['slug']);
+        $this->assertSame([], $this->search()->search('tokeneket', 'de'));
+    }
+
+    public function test_unknown_locale_with_an_empty_fallback_uses_the_source_locale(): void
+    {
+        config(['manual.fallback' => []]);
+        foreach ([ContentTree::class, ManualRepository::class, ManualSearch::class] as $abstract) {
+            app()->forgetInstance($abstract);
+        }
+
         $this->assertSame('guide/tokens', $this->search()->search('tokeneket', 'de')[0]['slug']);
     }
 

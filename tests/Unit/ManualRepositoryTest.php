@@ -188,9 +188,38 @@ final class ManualRepositoryTest extends TestCase
         $this->assertTrue($tree->isKnown('general/intro'));
     }
 
-    public function test_disallowed_locale_is_treated_as_source_locale(): void
+    public function test_disallowed_locale_is_served_through_the_fallback_list(): void
     {
-        foreach (['../x', 'xx', '../../etc'] as $locale) {
+        foreach (['../x', 'xx', 'de', '../../etc'] as $locale) {
+            $chapter = $this->repo()->chapter('general/intro', $locale);
+
+            $this->assertNotNull($chapter, $locale);
+            $this->assertSame('en', $chapter['locale']);
+            $this->assertTrue($chapter['fallback']);
+            $this->assertSame('General', $this->repo()->tree($locale)[0]['title']);
+
+            $missing = $this->repo()->chapter('advanced/tuning', $locale);
+            $this->assertNotNull($missing, $locale);
+            $this->assertSame('hu', $missing['locale']);
+            $this->assertTrue($missing['fallback']);
+        }
+
+        $markdown = $this->repo()->markdown('general/intro', '../x');
+        $this->assertNotNull($markdown);
+        $this->assertSame('en', $markdown['locale']);
+
+        $markdown = $this->repo()->markdown('advanced/tuning', '../x');
+        $this->assertNotNull($markdown);
+        $this->assertSame('hu', $markdown['locale']);
+    }
+
+    public function test_disallowed_locale_with_an_empty_fallback_serves_the_source_locale(): void
+    {
+        config(['manual.fallback' => []]);
+        app()->forgetInstance(ContentTree::class);
+        app()->forgetInstance(ManualRepository::class);
+
+        foreach (['de', '../x'] as $locale) {
             $chapter = $this->repo()->chapter('general/intro', $locale);
 
             $this->assertNotNull($chapter, $locale);
@@ -198,10 +227,19 @@ final class ManualRepositoryTest extends TestCase
             $this->assertTrue($chapter['fallback']);
             $this->assertSame('Általános', $this->repo()->tree($locale)[0]['title']);
         }
+    }
 
-        $markdown = $this->repo()->markdown('general/intro', '../x');
-        $this->assertNotNull($markdown);
-        $this->assertSame('hu', $markdown['locale']);
+    public function test_disallowed_locale_never_enters_the_chain_or_a_path(): void
+    {
+        $tree = app()->make(ContentTree::class);
+
+        foreach (['../x', 'de', '../../etc', "hu\0"] as $locale) {
+            $this->assertSame(['en', 'hu'], $tree->chain($locale), $locale);
+            $this->assertSame('en', $tree->resolveLocale($locale), $locale);
+        }
+
+        $this->assertSame(['hu', 'en'], $tree->chain('hu'));
+        $this->assertSame(['en', 'hu'], $tree->chain('en'));
     }
 
     public function test_cache_is_invalidated_when_content_changes(): void

@@ -148,6 +148,51 @@ final class ManualEndpointTest extends TestCase
             ->assertJsonPath('data.0.slug', 'general/intro');
     }
 
+    public function test_unsupported_language_is_served_through_the_fallback_list(): void
+    {
+        // The test client sends `Accept-Language: en-US,en`, which would win over an unsupported ?locale.
+        $de = ['Accept-Language' => 'de'];
+
+        $this->getJson('/manual?locale=de', $de)
+            ->assertOk()
+            ->assertJsonPath('locale', 'en')
+            ->assertJsonPath('fallback', true)
+            ->assertJsonPath('data.0.title', 'General');
+
+        $this->getJson('/manual/chapter?slug=general/intro&locale=de', $de)
+            ->assertOk()
+            ->assertJsonPath('data.locale', 'en')
+            ->assertJsonPath('data.fallback', true)
+            ->assertJsonPath('data.title', 'Introduction');
+
+        $this->getJson('/manual/chapter?slug=advanced/tuning&locale=de', $de)
+            ->assertOk()
+            ->assertJsonPath('data.locale', 'hu')
+            ->assertJsonPath('data.fallback', true);
+
+        $this->getJson('/manual/search?q=introduction&locale=de', $de)
+            ->assertOk()
+            ->assertJsonPath('locale', 'en')
+            ->assertJsonPath('fallback', true);
+    }
+
+    public function test_unsupported_language_with_an_empty_fallback_is_served_from_the_source(): void
+    {
+        config(['manual.fallback' => []]);
+        $de = ['Accept-Language' => 'de'];
+
+        $this->getJson('/manual?locale=de', $de)
+            ->assertOk()
+            ->assertJsonPath('locale', 'hu')
+            ->assertJsonPath('fallback', true)
+            ->assertJsonPath('data.0.title', 'Általános');
+
+        $this->getJson('/manual/chapter?slug=general/intro&locale=de', $de)
+            ->assertOk()
+            ->assertJsonPath('data.locale', 'hu')
+            ->assertJsonPath('data.fallback', true);
+    }
+
     public function test_first_allowed_accept_language_is_served(): void
     {
         config(['manual.locales' => ['hu', 'en'], 'manual.source_locale' => 'hu', 'manual.fallback' => ['en']]);

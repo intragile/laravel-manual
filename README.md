@@ -214,7 +214,7 @@ and `mailto` URLs are linked; anything else, and an unknown key, renders as the 
 | `path` | `resource_path('manual')` | The manual directory. |
 | `locales` | `['en']` | The locales the API accepts. List every translation. The source locale is always allowed as well. |
 | `source_locale` | `en` | The language every chapter must exist in; the last step of the fallback chain. |
-| `fallback` | `['en']` | Extra languages to try, in order, when the requested one lacks a chapter. |
+| `fallback` | `['en']` | Extra languages to try, in order, when the requested one lacks a chapter or is not configured. |
 | `access` | `authenticated` | `public`, `authenticated`, a gate name or `disabled`. See below. |
 | `routes.enabled` | `true` | Register the routes automatically. Turn off to call `Manual::routes()` yourself. |
 | `routes.prefix` | `manual` | URL prefix. |
@@ -353,7 +353,8 @@ Every endpoint also takes `?locale=` (a string of up to 20 characters).
 - The chapter's `locale` is the language of the file actually read, and `fallback` is `true` when it
   differs from the requested language. The chapter response has no top level `locale`.
 - The top level `locale` of the tree and of search is the language the request resolved to: the
-  requested language when it is configured, otherwise `source_locale`. Their `fallback` is `true`
+  requested language when it is configured, otherwise the first configured language of `fallback`,
+  otherwise `source_locale`. Their `fallback` is `true`
   when the request could not be honoured in its own language. It is **language-level**: a single
   chapter that is missing from a configured translation and shown from the fallback does not turn
   the tree's or the search's `fallback` on. Read the chapter's own `fallback` for that.
@@ -374,13 +375,18 @@ The language is resolved from the request in this order:
 The first candidate from steps 1 and 2 that is in `locales` or is the `source_locale` wins, so
 `Accept-Language: de, en;q=0.9` serves `en` when `de` is not configured. If the client asked for
 languages but none of them is configured (say only `?locale=de`), the manual is served from the
-fallback chain and the tree and search report `fallback: true`: the client learns that its own
+fallback chain (below) and the tree and search report `fallback: true`: the client learns that its own
 language is not available. A malformed value (`?locale=../x`) is ignored.
 
 ### Fallback chain
 
 For a requested language, a chapter is looked up in: the requested language, then the languages in
 `fallback` (only those that are configured), then `source_locale`. The first file found is served.
+A requested language that is not configured (not in `locales`, not `source_locale`) is skipped and
+never touches the filesystem: the chain is just the configured `fallback` languages, then
+`source_locale`. With `locales` `['hu', 'en']`, `source_locale` `hu` and `fallback` `['en']`, a
+request for `de` is served in `en` with `fallback: true`, and from `hu` for a chapter that has no
+`en` file. With `fallback` `[]` it is served from `source_locale`.
 The config `fallback` is the **chain** (which languages to try); the `fallback` flag in a response
 only says that the language served is not the language asked for.
 

@@ -224,7 +224,7 @@ Az URL-t a fejezet nyelvére választja, aztán `en`-re, aztán az elsőre. Csak
 | `path` | `resource_path('manual')` | A kézikönyv könyvtára. |
 | `locales` | `['en']` | Az API által elfogadott nyelvek. Sorold fel az összes fordítást. A forrásnyelv mindig engedélyezett. |
 | `source_locale` | `en` | Az a nyelv, amelyen minden fejezetnek léteznie kell; a visszaesési lánc utolsó lépése. |
-| `fallback` | `['en']` | További nyelvek, sorrendben, amelyeket akkor próbál, ha a kért nyelven hiányzik a fejezet. |
+| `fallback` | `['en']` | További nyelvek, sorrendben, amelyeket akkor próbál, ha a kért nyelven hiányzik a fejezet, vagy a kért nyelv nincs beállítva. |
 | `access` | `authenticated` | `public`, `authenticated`, gate neve vagy `disabled`. Lásd lent. |
 | `routes.enabled` | `true` | A route-ok automatikus regisztrálása. Kapcsold ki, ha a `Manual::routes()`-t magad hívod. |
 | `routes.prefix` | `manual` | URL-előtag. |
@@ -363,7 +363,7 @@ Minden végpont elfogadja a `?locale=` paramétert is (legfeljebb 20 karakteres 
 - A fejezet `locale` mezője a ténylegesen beolvasott fájl nyelve, a `fallback` pedig akkor `true`,
   ha ez eltér a kért nyelvtől. A fejezetválasznak nincs legfelső `locale`-ja.
 - A fa és a keresés legfelső `locale` mezője a kérésből meghatározott nyelv: a kért nyelv,
-  ha be van állítva, különben a `source_locale`. A `fallback` akkor `true`, ha a kérést a saját
+  ha be van állítva, különben a `fallback` első beállított nyelve, végül a `source_locale`. A `fallback` akkor `true`, ha a kérést a saját
   nyelvén nem lehetett teljesíteni. Ez **nyelvszintű**: ha egyetlen fejezet hiányzik egy beállított
   fordításból, és a visszaesésből jön, az nem kapcsolja be a fa vagy a keresés `fallback`-jét. Ahhoz
   a fejezet saját `fallback` mezőjét olvasd.
@@ -385,13 +385,18 @@ A nyelvet a kérésből ebben a sorrendben oldja fel:
 Az 1. és 2. lépés első olyan jelöltje nyer, amely szerepel a `locales`-ben vagy a `source_locale`,
 így az `Accept-Language: de, en;q=0.9` az `en`-t szolgálja ki, ha a `de` nincs beállítva. Ha a
 kliens kért nyelvet, de egyik sincs beállítva (mondjuk csak `?locale=de`), a kézikönyv a
-visszaesési láncból jön, a fa és a keresés pedig `fallback: true`-t jelez: a kliens így megtudja,
+visszaesési láncból (lásd lent) jön, a fa és a keresés pedig `fallback: true`-t jelez: a kliens így megtudja,
 hogy a saját nyelve nem elérhető. A hibás alakú érték (`?locale=../x`) figyelmen kívül marad.
 
 ### Visszaesési lánc
 
 A kért nyelvhez a fejezetet ebben a sorrendben keresi: a kért nyelv, aztán a `fallback`-ben szereplő
-nyelvek (csak a beállítottak), végül a `source_locale`. Az első megtalált fájl jön. A config
+nyelvek (csak a beállítottak), végül a `source_locale`. Az első megtalált fájl jön. A nem beállított kért nyelvet (nincs a
+`locales`-ben, és nem a `source_locale`) kihagyja, és soha nem jut el a fájlrendszerig: a lánc ilyenkor
+csak a beállított `fallback` nyelvekből, majd a `source_locale`-ból áll. Ha a `locales` `['hu', 'en']`,
+a `source_locale` `hu`, a `fallback` pedig `['en']`, a `de` kérés `en` nyelven jön `fallback: true`-val,
+az olyan fejezet pedig, amelynek nincs `en` fájlja, `hu` nyelven. Üres (`[]`) `fallback` esetén a
+`source_locale`-ból jön. A config
 `fallback` kulcsa a **lánc** (mely nyelveket próbálja); a válasz `fallback` jelzője csak azt mondja
 meg, hogy a kiszolgált nyelv nem a kért nyelv.
 

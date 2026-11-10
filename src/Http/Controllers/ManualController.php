@@ -32,7 +32,7 @@ final class ManualController extends Controller
      * The manual tree: sections in order, each with its chapters.
      *
      * `locale` is the language the tree is served in (the requested one when it is configured,
-     * otherwise the source locale); `fallback` is true when that differs from the requested one.
+     * otherwise the first configured `fallback` language, otherwise the source locale); `fallback` is true when that differs from the requested one.
      * A single chapter missing from that language is still listed from the next language of the
      * fallback chain; its own `locale`/`fallback` are returned by the chapter endpoint.
      *

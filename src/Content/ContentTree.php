@@ -31,16 +31,19 @@ final class ContentTree
     }
 
     /**
-     * Allowed locale for filesystem access: the requested one when it is
-     * configured, otherwise the source locale.
+     * The locale a request is served in: the first entry of its fallback chain.
+     * That is the requested locale when it is allowed, otherwise the first allowed
+     * `fallback` entry, otherwise the source locale.
      */
     public function resolveLocale(string $requested): string
     {
-        return in_array($requested, $this->allowedLocales(), true) ? $requested : $this->sourceLocale;
+        return $this->chain($requested)[0];
     }
 
     /**
-     * Content fallback chain: locale, then the `fallback` list, then the source locale.
+     * Content fallback chain. An allowed locale is followed by the allowed `fallback`
+     * entries and the source locale. A locale that is not allowed is skipped (it never
+     * reaches a filesystem path), so the chain starts at the allowed `fallback` entries.
      * Only allowed locales ever appear in it.
      *
      * @return list<string>
@@ -48,7 +51,7 @@ final class ContentTree
     public function chain(string $locale): array
     {
         $allowed = $this->allowedLocales();
-        $chain = [$this->resolveLocale($locale)];
+        $chain = in_array($locale, $allowed, true) ? [$locale] : [];
 
         foreach ($this->fallback as $candidate) {
             if (in_array($candidate, $allowed, true)) {

@@ -152,7 +152,10 @@ final class ManualRenderer
 
         $text = strip_tags($this->stripMarkdown(implode("\n", $lines)));
         $text = preg_replace('/^:::.*$/m', '', $text) ?? $text;
-        $text = preg_replace('/[#>*_`|-]+/', ' ', $text) ?? $text;
+        $text = preg_replace('/[#>*_`|]+/', ' ', $text) ?? $text;
+        // A hyphen inside a word or number stays ("API-ját", "e-mail", "200-299"); list markers, rules and
+        // dashes standing alone go.
+        $text = preg_replace('/(?<![\p{L}\p{N}])-+|-+(?![\p{L}\p{N}])/u', ' ', $text) ?? $text;
 
         return trim(preg_replace('/\s+/', ' ', $text) ?? '');
     }

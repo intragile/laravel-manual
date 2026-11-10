@@ -6,6 +6,15 @@ All notable changes are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Plain text for search and summaries keeps a hyphen inside a word or number, so "API-ját",
+  "e-mail" or "200-299" no longer turn into two words in snippets. List markers, horizontal rules
+  and dashes standing on their own are still removed. The cache version moves to 3, so cached
+  search indexes and chapters are rebuilt once after the upgrade.
+
 ## [1.0.1] - 2026-11-10
 
 ### Fixed
@@ -57,6 +66,7 @@ All notable changes are recorded here. The format follows
   Exits non-zero on any error, for CI.
 - `manual:clear` command.
 
+[Unreleased]: https://github.com/intragile/laravel-manual/compare/v1.0.1...HEAD
 [1.0.1]: https://github.com/intragile/laravel-manual/releases/tag/v1.0.1
 [1.0.0]: https://github.com/intragile/laravel-manual/releases/tag/v1.0.0
 

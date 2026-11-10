@@ -18,14 +18,21 @@ use IntrAgile\Manual\Rendering\ManualRenderer;
  * @phpstan-type TreeSection array{id: string, icon: string, title: string, chapters: list<TreeChapter>}
  * @phpstan-type Neighbour array{slug: string, title: string}
  * @phpstan-type Heading array{anchor: string, text: string, level: int}
- * @phpstan-type Chapter array{slug: string, section: string, number: string, title: string, summary: string, html: string, headings: list<Heading>, prev: Neighbour|null, next: Neighbour|null, position: int, total: int, readingMinutes: int, locale: string, fallback: bool}
+ * @phpstan-type Chapter array{
+ *     slug: string, section: string, number: string, title: string, summary: string, html: string,
+ *     headings: list<Heading>, prev: Neighbour|null, next: Neighbour|null, position: int, total: int,
+ *     readingMinutes: int, locale: string, fallback: bool
+ * }
  *
  * @internal
  */
 final class ManualRepository
 {
-    /** Bump when the shape or the content of cached values changes (2: snippet text in 1.0.1). */
-    public const CACHE_VERSION = 2;
+    /**
+     * Bump when the shape or the content of cached values changes (2: snippet text in 1.0.1;
+     * 3: hyphens inside words kept in 1.0.2).
+     */
+    public const CACHE_VERSION = 3;
 
     /** One day, in seconds. */
     private const CACHE_TTL = 86400;

@@ -211,6 +211,16 @@ final class ManualRendererTest extends TestCase
         $this->assertSame('Bold. Next', $this->renderer()->plainText("# T\n\n## **Bold**\n\nNext\n"));
     }
 
+    public function test_plaintext_keeps_hyphens_inside_words(): void
+    {
+        $md = "# T\n\nAz API-ját e-mailben kérje, 200-299 között.\n\n- Első pont\n- Második -- vége\n\n---\n\nUtána\n";
+
+        $this->assertSame(
+            'Az API-ját e-mailben kérje, 200-299 között. Első pont Második vége Utána',
+            $this->renderer()->plainText($md),
+        );
+    }
+
     public function test_summary_closes_a_fence_only_like_commonmark(): void
     {
         $r = $this->renderer();

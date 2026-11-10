@@ -17,7 +17,10 @@ use IntrAgile\Manual\Support\Ascii;
  * The per-locale index is cached as arrays only (no objects), so it survives
  * `cache.serializable_classes => false`; a wrongly shaped entry is rebuilt.
  *
- * @phpstan-type Document array{slug: string, title: string, headings: string, summary: string, body: string, originalTitle: string, originalBody: string}
+ * @phpstan-type Document array{
+ *     slug: string, title: string, headings: string, summary: string, body: string,
+ *     originalTitle: string, originalBody: string
+ * }
  * @phpstan-type SearchHit array{slug: string, section: string, title: string, snippet: string, score: int}
  *
  * @internal

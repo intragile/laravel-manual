@@ -14,6 +14,9 @@ All notable changes are recorded here. The format follows
   begin with the chapter title, which every hit already shows separately. A heading without
   closing punctuation now ends with a period instead of running into the next sentence. The cache
   version moves to 2, so cached search indexes and chapters are rebuilt once after the upgrade.
+  Because the title is no longer part of the body text, a word in the title scores through the
+  title alone: a chapter that matches only in its title can now rank just below one that matches
+  in a heading and the body, where the two used to tie.
 - A symbolic link inside the manual directory that points to the directory itself or one of its
   ancestors no longer sends the content fingerprint into an endless loop.
 - A chapter summary no longer treats a line such as ```` ```~~~ ```` as the end of a ```` ``` ````
@@ -22,8 +25,7 @@ All notable changes are recorded here. The format follows
 - `?locale=` sent empty or blank no longer answers 422 when the application trims strings and
   converts empty ones to null; the locale is then taken from `Accept-Language` as if it were absent.
 - The package no longer calls the global helpers that only `laravel/framework` defines (`config()`,
-  `config_path()`, `app()`, `abort()`, `abort_if()`, `now()`), so it works with the `illuminate/*`
-  components it requires.
+  `config_path()`, `app()`, `abort()`, `abort_if()`, `now()`).
 
 ## [1.0.0] - 2026-11-10
 

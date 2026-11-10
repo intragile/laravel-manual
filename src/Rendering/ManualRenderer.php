@@ -137,16 +137,20 @@ final class ManualRenderer
     public function plainText(string $markdown): string
     {
         $text = preg_replace('/^\#\s+.+$/m', '', $markdown, 1) ?? $markdown;
-        $text = strip_tags($this->stripMarkdown($text));
-        $text = preg_replace_callback(
-            '/^[ ]{0,3}#{1,6}(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/m',
-            static function (array $m): string {
-                $heading = trim($m[1] ?? '');
 
-                return $heading === '' || preg_match('/[.!?:]$/', $heading) === 1 ? $heading : $heading.'.';
-            },
-            $text,
-        ) ?? $text;
+        // Headings only outside fenced code: a `# comment` line in a code block is not a heading.
+        $lines = preg_split('/\R/', $text) ?: [];
+        $fenced = array_flip(self::fencedLines($lines));
+
+        foreach ($lines as $i => $line) {
+            if (! isset($fenced[$i]) && preg_match('/^[ ]{0,3}#{1,6}(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/', $line, $m) === 1) {
+                $heading = trim($m[1] ?? '');
+                // Emphasis markers are stripped later, so `**Done.**` already ends with punctuation.
+                $lines[$i] = $heading === '' || preg_match('/[.!?:][*_`]*$/', $heading) === 1 ? $heading : $heading.'.';
+            }
+        }
+
+        $text = strip_tags($this->stripMarkdown(implode("\n", $lines)));
         $text = preg_replace('/^:::.*$/m', '', $text) ?? $text;
         $text = preg_replace('/[#>*_`|-]+/', ' ', $text) ?? $text;
 

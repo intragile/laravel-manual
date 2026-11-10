@@ -202,6 +202,15 @@ final class ManualRendererTest extends TestCase
         );
     }
 
+    public function test_plaintext_leaves_hash_lines_in_code_blocks_alone(): void
+    {
+        $md = "# Install\n\n## Steps\n\n```bash\n# install deps\nnpm ci\n```\n\nDone\n";
+
+        $this->assertSame('Steps. bash install deps npm ci Done', $this->renderer()->plainText($md));
+        $this->assertSame('Done. Next', $this->renderer()->plainText("# T\n\n## **Done.**\n\nNext\n"));
+        $this->assertSame('Bold. Next', $this->renderer()->plainText("# T\n\n## **Bold**\n\nNext\n"));
+    }
+
     public function test_summary_closes_a_fence_only_like_commonmark(): void
     {
         $r = $this->renderer();

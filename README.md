@@ -222,7 +222,7 @@ and `mailto` URLs are linked; anything else, and an unknown key, renders as the 
 | `routes.name` | `manual.` | Route name prefix (`manual.index`, `manual.chapter`, `manual.search`). |
 | `callouts` | `['tip', 'warning', 'note', 'steps']` | Allowed `:::type` container names. |
 | `links` | `null` | `[[link:]]` map: an array, a file path, or `null` for `{path}/_links.php` if it exists. |
-| `known_routes` | `null` | Route names `[[route:]]` may use, checked by `manual:check`. `null` skips the check. A list, or a callable returning an iterable, e.g. `'App\Support\Routes::names'`. Use a string callable, not a Closure, so `config:cache` keeps working. |
+| `known_routes` | `null` | Route names `[[route:]]` may use, checked by `manual:check`. `null` skips the check. A list, or a callable returning an iterable, e.g. `'App\Support\Routes::names'`. The callable must be a string callable or a Closure: an array callable is read as a list of names. Prefer a string callable, so `config:cache` keeps working. |
 | `stemmers` | Hungarian for `hu`, English for `en` | Locale => class implementing `Stemmer`. See Search. |
 | `search.min_term_length` | `3` | Shorter query terms are ignored. |
 | `search.limit` | `10` | Default number of hits. |
@@ -359,6 +359,8 @@ Every endpoint also takes `?locale=` (a string of up to 20 characters).
   chapter that is missing from a configured translation and shown from the fallback does not turn
   the tree's or the search's `fallback` on. Read the chapter's own `fallback` for that.
 - `html` is sanitized (see Security) and meant to be inserted with `v-html`.
+- Every other text field (`title`, `summary`, `headings[].text`, section titles, the titles of `prev` and
+  `next`, and the search `snippet`) is **plain text**: render it as text, never as HTML.
 
 ### Language resolution
 
@@ -518,7 +520,10 @@ The package follows [Semantic Versioning](https://semver.org/). From 1.0.0 on, a
 any of the following waits for the next major version:
 
 - the `Manual` facade methods: `tree()`, `chapter()`, `markdown()`, `search()` and `routes()`;
-- the `IntrAgile\Manual\Search\Stemmer` interface (so your own stemmers keep working);
+- the `IntrAgile\Manual\Search\Stemmer` interface (so your own stemmers keep working) and the
+  built-in stemmer classes `HungarianStemmer`, `EnglishStemmer` and `NullStemmer`;
+- the public methods of `ManualManager` (`tree()`, `chapter()`, `markdown()` and `search()`, not
+  its constructor);
 - the config keys and their meaning;
 - the routes, their names and query parameters, and the JSON shapes documented above;
 - the content format: `_meta.php`, `_sections.php`, `_links.php`, the token and callout syntax and
@@ -528,9 +533,8 @@ any of the following waits for the next major version:
   the individual messages is not covered, and new checks may be added in a minor version.
 
 Not covered: every class or method marked `@internal` (the controller, middleware, resources,
-command classes, the locale resolver), and the classes behind the facade: `ManualManager`,
-`ManualRepository`, `ContentTree`, `ManualSearch`, `ManualRenderer`, `ManualValidator` and the
-built-in stemmers' internals. Use the facade.
+command classes, the locale resolver), and the classes behind the facade: `ManualRepository`,
+`ContentTree`, `ManualSearch`, `ManualRenderer` and `ManualValidator`. Use the facade.
 
 ## Caching
 
@@ -549,6 +553,8 @@ objects (`cache.serializable_classes = false`). A key is built from:
 - the chapter slug, for chapter entries.
 
 A deploy that changes a file or the config therefore shows up without clearing anything. All entries expire after one day, so old keys do not pile up.
+
+An absent content path yields an empty manual, not an error. Run `php artisan manual:check` against the deployed build or image too, not only in the repository, so a missing content directory is noticed.
 
 `php artisan manual:clear` bumps the generation: every old entry becomes unreachable at once and
 simply expires. It works on **any** cache store (no tags, no key listing). Running workers pick

@@ -232,7 +232,7 @@ Az URL-t a fejezet nyelvére választja, aztán `en`-re, aztán az elsőre. Csak
 | `routes.name` | `manual.` | Route-név előtag (`manual.index`, `manual.chapter`, `manual.search`). |
 | `callouts` | `['tip', 'warning', 'note', 'steps']` | A megengedett `:::típus` dobozok nevei. |
 | `links` | `null` | A `[[link:]]` térképe: tömb, fájlútvonal, vagy `null`, ekkor a `{path}/_links.php`, ha létezik. |
-| `known_routes` | `null` | A `[[route:]]` által használható route-nevek, a `manual:check` ellenőrzi. `null` kihagyja az ellenőrzést. Lista, vagy iterálható értéket adó callable, pl. `'App\Support\Routes::names'`. Szöveges callable-t használj, ne Closure-t, hogy a `config:cache` működjön. |
+| `known_routes` | `null` | A `[[route:]]` által használható route-nevek, a `manual:check` ellenőrzi. `null` kihagyja az ellenőrzést. Lista, vagy iterálható értéket adó callable, pl. `'App\Support\Routes::names'`. A callable szöveges callable vagy Closure lehet: a tömb-callable-t a rendszer névlistaként olvassa. A `config:cache` miatt a szöveges callable az ajánlott. |
 | `stemmers` | `hu`-ra magyar, `en`-re angol | Nyelv => `Stemmer`-t megvalósító osztály. Lásd: Keresés. |
 | `search.min_term_length` | `3` | Az ennél rövidebb keresőszavakat figyelmen kívül hagyja. |
 | `search.limit` | `10` | A találatok alapszáma. |
@@ -368,6 +368,9 @@ Minden végpont elfogadja a `?locale=` paramétert is (legfeljebb 20 karakteres 
   fordításból, és a visszaesésből jön, az nem kapcsolja be a fa vagy a keresés `fallback`-jét. Ahhoz
   a fejezet saját `fallback` mezőjét olvasd.
 - A `html` megtisztított (lásd Biztonság), és `v-html`-lel való beillesztésre szánt.
+- Minden más szöveges mező (`title`, `summary`, `headings[].text`, a szakaszok címe, a `prev` és a
+  `next` címe, valamint a keresési `snippet`) **egyszerű szöveg**: szövegként kell megjeleníteni,
+  soha nem HTML-ként.
 
 ### Nyelvfeloldás
 
@@ -533,7 +536,10 @@ A csomag a [szemantikus verziózást](https://semver.org/lang/hu/) követi. Az 1
 alábbiak bármelyikét érintő, visszafelé nem kompatibilis változás a következő főverzióig vár:
 
 - a `Manual` facade metódusai: `tree()`, `chapter()`, `markdown()`, `search()` és `routes()`;
-- az `IntrAgile\Manual\Search\Stemmer` interfész (hogy a saját szótövezőid tovább működjenek);
+- az `IntrAgile\Manual\Search\Stemmer` interfész (hogy a saját szótövezők tovább működjenek), valamint a
+  beépített szótövező osztályok: `HungarianStemmer`, `EnglishStemmer` és `NullStemmer`;
+- a `ManualManager` publikus metódusai (`tree()`, `chapter()`, `markdown()` és `search()`, a
+  konstruktora nem);
 - a config kulcsai és jelentésük;
 - a route-ok, a nevük és a lekérdezési paramétereik, valamint a fent leírt JSON-szerkezetek;
 - a tartalom formátuma: `_meta.php`, `_sections.php`, `_links.php`, a token- és dobozszintaxis és a
@@ -544,8 +550,8 @@ alábbiak bármelyikét érintő, visszafelé nem kompatibilis változás a köv
 
 Nem tartozik ide: minden `@internal` jelölésű osztály és metódus (a controller, a middleware-ek, a
 resource-ok, a parancsosztályok, a nyelvfeloldó), valamint a facade mögötti osztályok: a
-`ManualManager`, a `ManualRepository`, a `ContentTree`, a `ManualSearch`, a `ManualRenderer`, a
-`ManualValidator` és a beépített szótövezők belseje. Használd a facade-ot.
+`ManualRepository`, a `ContentTree`, a `ManualSearch`, a `ManualRenderer` és a `ManualValidator`.
+A facade-ot érdemes használni.
 
 ## Cache
 
@@ -566,6 +572,8 @@ ezekből áll össze:
 
 Ha egy deploy módosít egy fájlt vagy a configot, a változás anélkül jelenik meg, hogy bármit
 törölni kellene. Minden bejegyzés egy nap után lejár, hogy a régi kulcsok ne halmozódjanak fel.
+
+A hiányzó tartalmi útvonal nem hiba, hanem üres kézikönyvet eredményez. A `php artisan manual:check` parancsot ezért a telepített buildre vagy image-re is érdemes lefuttatni, nem csak a repositoryban.
 
 A `php artisan manual:clear` növeli a generációt: minden régi bejegyzés egyszerre elérhetetlenné
 válik, és magától lejár. **Bármilyen** cache store-on működik (nincs címke, nincs kulcslistázás). A

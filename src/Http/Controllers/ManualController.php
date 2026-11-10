@@ -46,7 +46,7 @@ final class ManualController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $request->validate([
-            'locale' => ['sometimes', 'string', 'max:20'],
+            'locale' => ['sometimes', 'nullable', 'string', 'max:20'],
         ]);
 
         $requested = $this->locales->resolve($request);
@@ -69,7 +69,7 @@ final class ManualController extends Controller
         /** @var array{slug: string, locale?: string} $validated */
         $validated = $request->validate([
             'slug' => ['required', 'string', 'max:200'],
-            'locale' => ['sometimes', 'string', 'max:20'],
+            'locale' => ['sometimes', 'nullable', 'string', 'max:20'],
         ]);
 
         $chapter = $this->manual->chapter($validated['slug'], $this->locales->resolve($request));
@@ -97,7 +97,7 @@ final class ManualController extends Controller
         /** @var array{q: string, locale?: string} $validated */
         $validated = $request->validate([
             'q' => ['required', 'string', 'max:200'],
-            'locale' => ['sometimes', 'string', 'max:20'],
+            'locale' => ['sometimes', 'nullable', 'string', 'max:20'],
         ]);
 
         $requested = $this->locales->resolve($request);

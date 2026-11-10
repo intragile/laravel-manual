@@ -117,6 +117,27 @@ final class ManualEndpointTest extends TestCase
             ->assertJsonPath('data.fallback', false);
     }
 
+    public function test_empty_or_blank_locale_falls_through_to_accept_language(): void
+    {
+        // Testbench runs the default global middleware, so TrimStrings and ConvertEmptyStringsToNull
+        // turn both into null before validation.
+        foreach (['', '%20'] as $locale) {
+            $this->getJson('/manual?locale='.$locale, ['Accept-Language' => 'en'])
+                ->assertOk()
+                ->assertJsonPath('locale', 'en')
+                ->assertJsonPath('fallback', false);
+
+            $this->getJson('/manual/chapter?slug=general/intro&locale='.$locale, ['Accept-Language' => 'en'])
+                ->assertOk()
+                ->assertJsonPath('data.locale', 'en');
+
+            $this->getJson('/manual/search?q=bevezet%C5%91&locale='.$locale, ['Accept-Language' => 'de'])
+                ->assertOk()
+                ->assertJsonPath('locale', 'en')
+                ->assertJsonPath('fallback', true);
+        }
+    }
+
     public function test_query_locale_wins_over_accept_language(): void
     {
         $this->getJson('/manual?locale=en', ['Accept-Language' => 'hu'])
